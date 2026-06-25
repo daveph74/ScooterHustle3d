@@ -505,6 +505,7 @@ func _on_near_miss() -> void:
 	_add_shake(0.15, 0.15)
 	hud.flash_near_miss()
 	AudioManager.play_sfx("near_miss")
+	MissionManager.report("near_miss", 1)
 
 
 func _on_coin_collected(amount: int) -> void:
@@ -512,6 +513,7 @@ func _on_coin_collected(amount: int) -> void:
 	hud.set_run_coins(run_coins)
 	hud.pulse_coin()
 	AudioManager.play_sfx("coin")
+	MissionManager.report("coins", amount)
 
 
 # ==========================================================================
@@ -527,6 +529,12 @@ func _on_player_crashed() -> void:
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)
+
+	# Record run-based mission progress, then persist it once.
+	MissionManager.report("distance", int(distance))
+	MissionManager.report("score", score)
+	MissionManager.report("runs", 1)
+	MissionManager.save_now()
 
 	# Small pause so the crash registers, then show the game-over screen.
 	await get_tree().create_timer(0.7).timeout

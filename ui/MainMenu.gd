@@ -65,6 +65,14 @@ func _ready() -> void:
 	garage.pressed.connect(_on_garage)
 	box.add_child(garage)
 
+	# Daily missions (a star marks claimable rewards).
+	var missions_text := "DAILY MISSIONS"
+	if MissionManager.has_claimable():
+		missions_text += "  ★"
+	var missions := _make_button(missions_text)
+	missions.pressed.connect(_on_missions)
+	box.add_child(missions)
+
 	# --- Audio options ----------------------------------------------------
 	var spacer2 := Control.new()
 	spacer2.custom_minimum_size = Vector2(0, 16)
@@ -134,3 +142,8 @@ func _on_play() -> void:
 func _on_garage() -> void:
 	AudioManager.play_sfx("click")
 	get_tree().change_scene_to_file("res://ui/Garage.tscn")
+
+
+func _on_missions() -> void:
+	AudioManager.play_sfx("click")
+	get_tree().change_scene_to_file("res://ui/DailyMissions.tscn")

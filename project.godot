@@ -22,6 +22,7 @@ config/icon="res://icon.svg"
 ; handles saving / loading.
 GameData="*res://systems/GameData.gd"
 AudioManager="*res://systems/AudioManager.gd"
+MissionManager="*res://systems/MissionManager.gd"
 
 [display]
 
