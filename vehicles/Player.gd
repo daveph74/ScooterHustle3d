@@ -32,7 +32,7 @@ var alive := true
 # auto-scaled to fit, so we only ever tweak this facing flag if it points the
 # wrong way down the road.
 const SCOOTER_MODEL := preload("res://models/racing/vehicle-motorcycle.glb")
-const SCOOTER_FACES_BACK := false
+const SCOOTER_FACES_BACK := true
 
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
