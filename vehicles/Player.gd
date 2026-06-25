@@ -142,8 +142,9 @@ func _on_area_entered(area: Area3D) -> void:
 		area.collect()
 		coin_collected.emit(1)
 	elif area.is_in_group("powerup"):
-		area.collect()
-		powerup_collected.emit(area.kind)
+		var pu := area as PowerUp
+		pu.collect()
+		powerup_collected.emit(pu.kind)
 
 
 func _die() -> void:

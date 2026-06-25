@@ -148,7 +148,7 @@ func _ready() -> void:
 	player.shielded.connect(_on_shielded)
 
 	# Random events + the (idle) rainstorm visuals.
-	_env = $WorldEnvironment.environment
+	_env = ($WorldEnvironment as WorldEnvironment).environment
 	_build_rain()
 	events.event_started.connect(_on_event_started)
 	events.event_ended.connect(_on_event_ended)
@@ -444,7 +444,7 @@ func _scroll_coins(amount: float) -> void:
 		# existing area_entered collection picks them up.
 		if magnet and not coin.is_collected():
 			var dz: float = coin.position.z - player.position.z
-			if dz < powerups.MAGNET_RANGE and dz > -3.0:
+			if dz < powerups.magnet_range() and dz > -3.0:
 				coin.position.x = lerp(coin.position.x, player.position.x, 0.18)
 				coin.position.z = lerp(coin.position.z, player.position.z, 0.18)
 		if coin.position.z > DESPAWN_Z:

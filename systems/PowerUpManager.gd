@@ -63,6 +63,10 @@ func magnet_active() -> bool:
 	return _timed.has("magnet")
 
 
+func magnet_range() -> float:
+	return MAGNET_RANGE
+
+
 func coin_value_mult() -> int:
 	return 2 if _timed.has("multiplier") else 1
 
