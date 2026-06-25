@@ -19,6 +19,8 @@ const SFX := {
 	"crash": preload("res://audio/sfx/crash.wav"),
 	"near_miss": preload("res://audio/sfx/near_miss.wav"),
 	"click": preload("res://audio/sfx/click.wav"),
+	"powerup": preload("res://audio/sfx/powerup.wav"),
+	"shield": preload("res://audio/sfx/shield.wav"),
 }
 
 var _music_player: AudioStreamPlayer

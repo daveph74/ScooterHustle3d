@@ -15,6 +15,7 @@ extends Node3D
 # Scenes we spawn at runtime. Preloaded so they are ready instantly.
 const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
+const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
 
 # Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
 # trees are placed off to the sides and scroll past for a sense of a city.
@@ -82,6 +83,10 @@ var coin_interval := 1.7
 var scenery_timer := 0.0
 var scenery_interval := 0.9       # seconds between roadside props
 var _scenery_left := true         # alternate sides as we spawn
+var powerup_timer := 8.0          # first power-up can appear a bit into the run
+const POWERUP_MIN_GAP := 12.0     # power-ups are rare: 12-20s apart
+const POWERUP_MAX_GAP := 20.0
+const POWERUP_KINDS := ["magnet", "shield", "multiplier", "speed"]
 
 # --- Screen shake ---------------------------------------------------------
 var shake_strength := 0.0
@@ -103,6 +108,8 @@ var _ground_material: StandardMaterial3D
 @onready var traffic_container: Node3D = $TrafficContainer
 @onready var coin_container: Node3D = $CoinContainer
 @onready var scenery_container: Node3D = $SceneryContainer
+@onready var powerup_container: Node3D = $PowerUpContainer
+@onready var powerups := $PowerUpManager
 @onready var hud := $HUD
 @onready var game_over := $GameOverLayer
 
@@ -122,6 +129,9 @@ func _ready() -> void:
 		base_speed = 14.0 + scooter.speed * 4.0
 	speed = base_speed
 
+	# Wire up the power-up manager now that base_speed is known.
+	powerups.setup(player, hud, base_speed)
+
 	# Camera: sit behind and above, look slightly down the road.
 	camera.rotation_degrees.x = -16.0
 	camera.fov = 70.0
@@ -129,6 +139,8 @@ func _ready() -> void:
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
 	player.coin_collected.connect(_on_coin_collected)
+	player.powerup_collected.connect(_on_powerup_collected)
+	player.shielded.connect(_on_shielded)
 
 	# Prepare the UI.
 	game_over.hide_screen()
@@ -149,14 +161,16 @@ func _process(delta: float) -> void:
 
 	# --- Gentle difficulty ramp (no sudden spikes) ------------------------
 	speed = minf(base_speed + elapsed * 0.35, MAX_SPEED)
+	# The speed-boost power-up adds a small extra bump on top (capped modestly).
+	speed += powerups.speed_bonus()
 	traffic_interval = maxf(0.85, 1.6 - elapsed * 0.012)
 
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
 	distance += move
-	# Score gain is scaled by the current combo multiplier (and later by the
-	# speed-boost power-up), so keeping a streak makes the score climb faster.
-	score_value += move * combo.multiplier()
+	# Score gain scales with the combo multiplier AND the speed-boost score
+	# bonus, so keeping a streak / boosting makes the score climb faster.
+	score_value += move * combo.multiplier() * powerups.score_mult()
 	score = int(score_value)
 
 	_scroll_road(move)
@@ -165,6 +179,7 @@ func _process(delta: float) -> void:
 	_scroll_traffic(delta)
 	_scroll_coins(move)
 	_scroll_scenery(move)
+	_scroll_powerups(move)
 
 	# --- Spawning ---------------------------------------------------------
 	traffic_timer -= delta
@@ -181,6 +196,11 @@ func _process(delta: float) -> void:
 	if scenery_timer <= 0.0:
 		scenery_timer = scenery_interval
 		_spawn_scenery_at(SPAWN_Z)
+
+	powerup_timer -= delta
+	if powerup_timer <= 0.0:
+		powerup_timer = randf_range(POWERUP_MIN_GAP, POWERUP_MAX_GAP)
+		_spawn_powerup()
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
@@ -400,15 +420,41 @@ func _spawn_coin_line() -> void:
 
 
 func _scroll_coins(amount: float) -> void:
+	var magnet := powerups.magnet_active()
 	for coin in coin_container.get_children():
 		coin.position.z += amount
 		_apply_path(coin)
+		# Coin magnet: pull nearby (ahead) coins toward the player so the
+		# existing area_entered collection picks them up.
+		if magnet and not coin.is_collected():
+			var dz: float = coin.position.z - player.position.z
+			if dz < powerups.MAGNET_RANGE and dz > -3.0:
+				coin.position.x = lerp(coin.position.x, player.position.x, 0.18)
+				coin.position.z = lerp(coin.position.z, player.position.z, 0.18)
 		if coin.position.z > DESPAWN_Z:
 			# A coin that scrolled past uncollected breaks the combo streak.
 			if not coin.is_collected():
 				combo.on_miss()
 				hud.set_combo(0, 1)
 			coin.queue_free()
+
+
+func _spawn_powerup() -> void:
+	# Power-ups appear in the current safe lane so they're always reachable.
+	var pu = POWERUP_SCRIPT.new()
+	powerup_container.add_child(pu)
+	pu.setup(POWERUP_KINDS[randi() % POWERUP_KINDS.size()])
+	pu.position = Vector3(LANES_X[_safe_lane], 0.0, SPAWN_Z)
+	pu.set_meta("bx", LANES_X[_safe_lane])
+	pu.set_meta("by", 0.0)
+
+
+func _scroll_powerups(amount: float) -> void:
+	for pu in powerup_container.get_children():
+		pu.position.z += amount
+		_apply_path(pu)
+		if pu.position.z > DESPAWN_Z:
+			pu.queue_free()
 
 
 # ==========================================================================
@@ -519,15 +565,27 @@ func _on_near_miss() -> void:
 
 
 func _on_coin_collected(amount: int) -> void:
-	run_coins += amount
+	# The coin-multiplier power-up doubles the coins each pickup is worth.
+	var added := amount * powerups.coin_value_mult()
+	run_coins += added
 	hud.set_run_coins(run_coins)
 	hud.pulse_coin()
-	MissionManager.report("coins", amount)
+	MissionManager.report("coins", added)
 
 	# Grow the combo and raise the coin pitch with the multiplier.
 	var milestone := combo.on_coin()
 	hud.set_combo(combo.count, combo.multiplier(), milestone)
 	AudioManager.play_sfx("coin", 1.0 + combo.multiplier() * 0.08)
+
+
+func _on_powerup_collected(kind: String) -> void:
+	powerups.activate(kind)
+	AudioManager.play_sfx("powerup")
+
+
+func _on_shielded() -> void:
+	AudioManager.play_sfx("shield")
+	_add_shake(0.25, 0.25)
 
 
 # ==========================================================================

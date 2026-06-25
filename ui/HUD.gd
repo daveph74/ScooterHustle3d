@@ -14,6 +14,11 @@ var _score_label: Label
 var _total_label: Label
 var _near_miss_label: Label
 var _combo_label: Label
+var _powerup_box: VBoxContainer
+var _powerup_rows := {}   # kind -> {row, bar}
+const _POWERUP_LABELS := {
+	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
+}
 
 
 func _ready() -> void:
@@ -49,6 +54,15 @@ func _ready() -> void:
 	_combo_label.offset_top = 300
 	_combo_label.modulate.a = 0.0
 	add_child(_combo_label)
+
+	# Active power-up duration bars, stacked under the top bar on the right.
+	_powerup_box = VBoxContainer.new()
+	_powerup_box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_powerup_box.offset_left = -260
+	_powerup_box.offset_right = -24
+	_powerup_box.offset_top = 90
+	_powerup_box.add_theme_constant_override("separation", 6)
+	add_child(_powerup_box)
 
 
 ## Helper that builds a readable label (white text with a dark outline so it
@@ -90,6 +104,31 @@ func flash_near_miss() -> void:
 	_near_miss_label.modulate.a = 1.0
 	var tween := create_tween()
 	tween.tween_property(_near_miss_label, "modulate:a", 0.0, 0.6)
+
+
+## Show/update a power-up duration bar. remaining <= 0 removes it.
+func show_powerup_duration(kind: String, remaining: float, max_duration: float) -> void:
+	if remaining <= 0.0:
+		if _powerup_rows.has(kind):
+			_powerup_rows[kind].row.queue_free()
+			_powerup_rows.erase(kind)
+		return
+	if not _powerup_rows.has(kind):
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var label := _make_label(_POWERUP_LABELS.get(kind, kind), HORIZONTAL_ALIGNMENT_LEFT)
+		label.add_theme_font_size_override("font_size", 20)
+		row.add_child(label)
+		var bar := ProgressBar.new()
+		bar.min_value = 0
+		bar.max_value = 1.0
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(120, 18)
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(bar)
+		_powerup_box.add_child(row)
+		_powerup_rows[kind] = {"row": row, "bar": bar}
+	_powerup_rows[kind].bar.value = clampf(remaining / maxf(max_duration, 0.001), 0.0, 1.0)
 
 
 ## Update the combo indicator. count 0 hides it; "milestone" gives it a pop.

@@ -14,6 +14,14 @@ class_name Player
 signal crashed
 ## Emitted when a coin is picked up. Carries how many coins were collected.
 signal coin_collected(amount: int)
+## Emitted when a power-up is picked up. Carries its kind ("magnet"/"shield"/...).
+signal powerup_collected(kind: String)
+## Emitted when a shield absorbs a hit (instead of crashing).
+signal shielded
+
+# Set true by the PowerUpManager when a shield power-up is active. The next
+# traffic hit consumes it instead of ending the run.
+var shield_active := false
 
 # --- Lane layout (must match Game.gd) -------------------------------------
 const LANE_WIDTH := 2.5     # distance between lane centres
@@ -121,11 +129,19 @@ func _on_area_entered(area: Area3D) -> void:
 	if not alive:
 		return
 	if area.is_in_group("traffic"):
+		# A shield absorbs one hit instead of crashing.
+		if shield_active:
+			shield_active = false
+			shielded.emit()
+			return
 		_die()
 	elif area.is_in_group("coin"):
 		# Tell the coin to play its pickup animation, then count it.
 		area.collect()
 		coin_collected.emit(1)
+	elif area.is_in_group("powerup"):
+		area.collect()
+		powerup_collected.emit(area.kind)
 
 
 func _die() -> void:
