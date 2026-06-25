@@ -85,16 +85,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventScreenTouch:
-		if event.pressed:
+		# Cast to the specific event type so the compiler knows it has a
+		# "position" property (otherwise the type can't be inferred).
+		var touch := event as InputEventScreenTouch
+		if touch.pressed:
 			# Finger went down - remember where.
 			_touching = true
-			_touch_start_x = event.position.x
+			_touch_start_x = touch.position.x
 		else:
 			_touching = false
 
 	elif event is InputEventScreenDrag and _touching:
 		# Finger is moving - did it travel far enough sideways to be a swipe?
-		var dx := event.position.x - _touch_start_x
+		var drag := event as InputEventScreenDrag
+		var dx := drag.position.x - _touch_start_x
 		if absf(dx) > SWIPE_MIN_PIXELS:
 			change_lane(1 if dx > 0.0 else -1)
 			# Require lifting the finger before another swipe so one drag only
