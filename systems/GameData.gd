@@ -23,6 +23,26 @@ var music_on: bool = true
 var sfx_on: bool = true
 var music_track: int = 0
 
+## Save-file schema version. Bump when the saved shape changes; load_game()
+## migrates older files simply by defaulting any missing keys (additive schema).
+const SAVE_VERSION := 2
+var version: int = SAVE_VERSION
+
+# --- Daily missions (managed by MissionManager) ---------------------------
+# Shape: { "date": "YYYY-MM-DD",
+#          "missions": [ {id,type,name,target,progress,reward,completed,claimed}, ... ] }
+var daily_missions: Dictionary = {}
+
+# --- Cosmetics (managed via the garage + Cosmetics.gd) --------------------
+# The "_default"/"_none" ids are free and always owned. Cosmetics are purely
+# visual - they never affect gameplay stats.
+var owned_cosmetics: Array = ["paint_default", "helmet_none", "wheel_default"]
+var equipped_cosmetics: Dictionary = {
+	"paint": "paint_default",
+	"helmet": "helmet_none",
+	"wheel": "wheel_default",
+}
+
 
 func _ready() -> void:
 	_load_scooter_defs()
@@ -83,16 +103,47 @@ func add_coins(amount: int) -> void:
 	save_game()
 
 
+# --- Cosmetics ------------------------------------------------------------
+
+func is_cosmetic_owned(id: String) -> bool:
+	return id in owned_cosmetics
+
+
+## Buy a cosmetic if affordable and not already owned. Returns true on success.
+func try_buy_cosmetic(id: String, price: int) -> bool:
+	if is_cosmetic_owned(id) or total_coins < price:
+		return false
+	total_coins -= price
+	owned_cosmetics.append(id)
+	save_game()
+	return true
+
+
+## Equip an owned cosmetic into its slot ("paint" / "helmet" / "wheel").
+func equip_cosmetic(slot: String, id: String) -> void:
+	if is_cosmetic_owned(id):
+		equipped_cosmetics[slot] = id
+		save_game()
+
+
+func get_equipped(slot: String) -> String:
+	return String(equipped_cosmetics.get(slot, ""))
+
+
 # --- Saving and loading ---------------------------------------------------
 
 func save_game() -> void:
 	var data := {
+		"version": SAVE_VERSION,
 		"total_coins": total_coins,
 		"unlocked_ids": unlocked_ids,
 		"selected_id": selected_id,
 		"music_on": music_on,
 		"sfx_on": sfx_on,
 		"music_track": music_track,
+		"daily_missions": daily_missions,
+		"owned_cosmetics": owned_cosmetics,
+		"equipped_cosmetics": equipped_cosmetics,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -111,12 +162,27 @@ func load_game() -> void:
 	var parsed = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return  # corrupted / empty file - ignore and keep defaults
+	# Older saves simply lack the newer keys; .get(..., default) migrates them.
+	version = int(parsed.get("version", 1))
 	total_coins = int(parsed.get("total_coins", 0))
 	unlocked_ids = parsed.get("unlocked_ids", ["rusty"])
 	selected_id = String(parsed.get("selected_id", "rusty"))
 	music_on = bool(parsed.get("music_on", true))
 	sfx_on = bool(parsed.get("sfx_on", true))
 	music_track = int(parsed.get("music_track", 0))
-	# Safety: make sure the rusty scooter is always owned.
+	daily_missions = parsed.get("daily_missions", {})
+	owned_cosmetics = parsed.get("owned_cosmetics", ["paint_default", "helmet_none", "wheel_default"])
+	equipped_cosmetics = parsed.get("equipped_cosmetics", {
+		"paint": "paint_default", "helmet": "helmet_none", "wheel": "wheel_default",
+	})
+	version = SAVE_VERSION  # we have now migrated to the current schema
+
+	# Safety: make sure the rusty scooter and the default cosmetics are owned.
 	if not ("rusty" in unlocked_ids):
 		unlocked_ids.append("rusty")
+	for default_id in ["paint_default", "helmet_none", "wheel_default"]:
+		if not (default_id in owned_cosmetics):
+			owned_cosmetics.append(default_id)
+	for slot in ["paint", "helmet", "wheel"]:
+		if not equipped_cosmetics.has(slot):
+			equipped_cosmetics[slot] = "%s_%s" % [slot, "default" if slot != "helmet" else "none"]
