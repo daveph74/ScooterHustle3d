@@ -677,6 +677,7 @@ func _on_player_crashed() -> void:
 	AudioManager.play_sfx("crash")
 	combo.on_crash()
 	hud.set_combo(0, 1)
+	hud.hide_pause_button()   # can't pause once the run is over
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)

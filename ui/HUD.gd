@@ -17,17 +17,24 @@ var _combo_label: Label
 var _powerup_box: VBoxContainer
 var _powerup_rows := {}   # kind -> {row, bar}
 var _event_banner: Label
+var _pause_button: Button
+var _pause_overlay: Control
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
 
 
 func _ready() -> void:
+	# Keep the HUD running while the tree is paused, so the pause button and
+	# pause menu still respond (the gameplay nodes stay paused).
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	# A bar pinned across the top of the screen holding the three counters.
+	# Right inset leaves room for the pause button in the top-right corner.
 	var bar := HBoxContainer.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	bar.offset_left = 24
-	bar.offset_right = -24
+	bar.offset_right = -100
 	bar.offset_top = 36
 	add_child(bar)
 
@@ -73,6 +80,105 @@ func _ready() -> void:
 	_event_banner.offset_top = 130
 	_event_banner.modulate.a = 0.0
 	add_child(_event_banner)
+
+	_build_pause_ui()
+
+
+# --- Pause -----------------------------------------------------------------
+
+func _build_pause_ui() -> void:
+	# Pause button in the top-right corner (large tap target for phones).
+	_pause_button = Button.new()
+	_pause_button.text = "II"
+	_pause_button.add_theme_font_size_override("font_size", 34)
+	_pause_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_pause_button.offset_left = -84
+	_pause_button.offset_right = -16
+	_pause_button.offset_top = 28
+	_pause_button.offset_bottom = 96
+	_pause_button.pressed.connect(_on_pause)
+	add_child(_pause_button)
+
+	# Full-screen pause menu, hidden until used.
+	_pause_overlay = Control.new()
+	_pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.visible = false
+	add_child(_pause_overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.add_child(center)
+
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 20)
+	center.add_child(box)
+
+	var title := Label.new()
+	title.text = "PAUSED"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 56)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	box.add_child(title)
+
+	box.add_child(_make_menu_button("RESUME", _on_resume))
+	box.add_child(_make_menu_button("RESTART", _on_restart))
+	box.add_child(_make_menu_button("MAIN MENU", _on_menu))
+
+
+func _make_menu_button(text: String, handler: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(340, 90)
+	button.add_theme_font_size_override("font_size", 34)
+	button.pressed.connect(handler)
+	return button
+
+
+## Hide the pause button once the run is over (so you can't pause on Game Over).
+func hide_pause_button() -> void:
+	if _pause_button:
+		_pause_button.visible = false
+
+
+# Escape (desktop) / on-screen button toggles pause.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if get_tree().paused:
+			_on_resume()
+		elif _pause_button.visible:
+			_on_pause()
+
+
+func _on_pause() -> void:
+	if not _pause_button.visible:
+		return
+	AudioManager.play_sfx("click")
+	get_tree().paused = true
+	_pause_overlay.visible = true
+
+
+func _on_resume() -> void:
+	AudioManager.play_sfx("click")
+	get_tree().paused = false
+	_pause_overlay.visible = false
+
+
+func _on_restart() -> void:
+	AudioManager.play_sfx("click")
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
+func _on_menu() -> void:
+	AudioManager.play_sfx("click")
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://ui/MainMenu.tscn")
 
 
 ## Helper that builds a readable label (white text with a dark outline so it
