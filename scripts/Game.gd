@@ -91,6 +91,7 @@ func _ready() -> void:
 	_make_road_materials()
 	_build_road()
 	_prewarm_scenery()
+	_prewarm_traffic()
 
 	# Aim the sun down and across so the boxes cast nice shadows.
 	sun.rotation_degrees = Vector3(-55, -35, 0)
@@ -231,13 +232,19 @@ func _scroll_road(amount: float) -> void:
 # ==========================================================================
 
 func _spawn_traffic() -> void:
+	_spawn_traffic_at(SPAWN_Z)
+
+
+## Spawn traffic at a given distance ahead. Used both for normal spawning (at
+## SPAWN_Z) and for pre-populating the road at startup.
+func _spawn_traffic_at(z: float) -> void:
 	var types := ["jeepney", "tricycle", "bus", "car"]
 	var lane := randi() % 3
 
 	var vehicle := TRAFFIC_SCENE.instantiate()
 	traffic_container.add_child(vehicle)
 	vehicle.setup(types[randi() % types.size()])
-	vehicle.position = Vector3(LANES_X[lane], 0.0, SPAWN_Z)
+	vehicle.position = Vector3(LANES_X[lane], 0.0, z)
 
 	# Later in the run, sometimes add a second vehicle in a DIFFERENT lane.
 	# We never fill all three lanes, so there is always a way through.
@@ -246,7 +253,16 @@ func _spawn_traffic() -> void:
 		var vehicle2 := TRAFFIC_SCENE.instantiate()
 		traffic_container.add_child(vehicle2)
 		vehicle2.setup(types[randi() % types.size()])
-		vehicle2.position = Vector3(LANES_X[lane2], 0.0, SPAWN_Z - randf_range(4.0, 12.0))
+		vehicle2.position = Vector3(LANES_X[lane2], 0.0, z - randf_range(4.0, 12.0))
+
+
+## Put some traffic on the road at startup so it isn't empty for the first few
+## seconds while the first spawned vehicles drive in from the distance.
+func _prewarm_traffic() -> void:
+	var z := -40.0   # far enough that the player has time to react at the start
+	while z > -150.0:
+		_spawn_traffic_at(z)
+		z -= randf_range(20.0, 34.0)
 
 
 func _scroll_traffic(amount: float) -> void:

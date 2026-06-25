@@ -20,9 +20,7 @@ sky = SubResource("sky")
 ambient_light_source = 3
 ambient_light_energy = 1.0
 tonemap_mode = 2
-fog_enabled = true
-fog_light_color = Color(0.72, 0.82, 0.9, 1)
-fog_density = 0.012
+fog_enabled = false
 
 [sub_resource type="StandardMaterial3D" id="ground_mat"]
 albedo_color = Color(0.32, 0.42, 0.26, 1)
