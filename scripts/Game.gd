@@ -309,18 +309,25 @@ func _spawn_scenery_at(z: float) -> void:
 	var side := -1.0 if _scenery_left else 1.0
 
 	var holder: Node3D
+	var gap: float   # extra space between the road edge and this prop
 	if randf() < 0.45:
 		# A clump of trees, sitting close to the road edge.
 		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", false)
-		holder.position = Vector3(side * randf_range(6.0, 9.0), 0.0, z)
+		gap = randf_range(1.0, 3.0)
 	else:
 		# A building, set back a little further.
 		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", false)
-		holder.position = Vector3(side * randf_range(8.0, 13.0), 0.0, z)
+		gap = randf_range(2.5, 6.0)
 
 	holder.rotate_y(randf_range(0.0, TAU))
+
+	# Push the prop out by its own footprint so its edge always clears the road,
+	# no matter how big the model was scaled or how it was rotated.
+	var road_edge := ROAD_WIDTH * 0.5
+	var radius := ModelUtil.footprint_radius(holder)
+	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, z)
 
 
 func _scroll_scenery(amount: float) -> void:

@@ -47,6 +47,14 @@ static func instance_fitted(parent: Node3D, packed: PackedScene, target: Vector3
 	return holder
 
 
+## Half of the model's larger horizontal dimension, in world units, AFTER
+## fitting (and any rotation already applied to the holder). Used to place
+## scenery so its edge clears the road no matter how big or rotated it is.
+static func footprint_radius(holder: Node3D) -> float:
+	var aabb := _local_aabb(holder, holder)
+	return maxf(aabb.size.x, aabb.size.z) * 0.5
+
+
 ## Merge the bounding boxes of every visual mesh under "root", expressed in
 ## "reference" node's local space.
 static func _local_aabb(reference: Node3D, root: Node3D) -> AABB:
