@@ -90,12 +90,15 @@ res://
   - `HUD` and `GameOverLayer` — instances of the UI overlays.
 
 - **`vehicles/Player.tscn`** — The scooter. An `Area3D` (so it can detect
-  overlaps) with two box meshes (body + rider) and a collision box. It sits on
-  collision **layer 1** and watches **layers 2 & 3** (traffic & coins).
+  overlaps) with a collision box and an empty `Model` node. The script builds a
+  low-poly scooter + rider (deck, body, seat, handlebars, headlight, two wheels,
+  rider torso + helmet) out of box and cylinder primitives. It sits on collision
+  **layer 1** and watches **layers 2 & 3** (traffic & coins).
 
 - **`traffic/TrafficVehicle.tscn`** — One reusable obstacle. An `Area3D` with a
-  box mesh + collision box. The same scene becomes a jeepney, bus, tricycle or
-  car by resizing/recolouring in code. Sits on **layer 2**.
+  collision box and an empty `Model` node. The script assembles a simple
+  low-poly model (body, window strip, roof/cabin, wheels) sized & coloured for a
+  jeepney, bus, tricycle or car. Sits on **layer 2**.
 
 - **`scenes/Coin.tscn`** — A spinning gold coin. An `Area3D` with a cylinder
   mesh (stood on its edge) and a sphere collision shape. Sits on **layer 3**.
