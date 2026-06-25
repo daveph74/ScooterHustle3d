@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 ; script simply by typing "GameData". It stores coins, unlocked scooters and
 ; handles saving / loading.
 GameData="*res://systems/GameData.gd"
+AudioManager="*res://systems/AudioManager.gd"
 
 [display]
 

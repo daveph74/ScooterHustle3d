@@ -92,9 +92,11 @@ func show_screen(score: int, run_coins: int, total_coins: int) -> void:
 # --- Buttons --------------------------------------------------------------
 
 func _on_retry() -> void:
+	AudioManager.play_sfx("click")
 	# Reload the gameplay scene from scratch for a fresh run.
 	get_tree().reload_current_scene()
 
 
 func _on_menu() -> void:
+	AudioManager.play_sfx("click")
 	get_tree().change_scene_to_file("res://ui/MainMenu.tscn")

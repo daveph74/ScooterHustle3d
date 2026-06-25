@@ -140,15 +140,20 @@ func _stars(value: float) -> String:
 
 
 func _on_select(id: String) -> void:
+	AudioManager.play_sfx("click")
 	GameData.select(id)
 	_refresh()
 
 
 func _on_buy(id: String) -> void:
 	if GameData.try_buy(id):
+		AudioManager.play_sfx("coin")   # cha-ching on a successful purchase
 		GameData.select(id)   # auto-ride the scooter you just bought
+	else:
+		AudioManager.play_sfx("click")
 	_refresh()
 
 
 func _on_back() -> void:
+	AudioManager.play_sfx("click")
 	get_tree().change_scene_to_file("res://ui/MainMenu.tscn")

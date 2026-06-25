@@ -1,8 +1,13 @@
 extends Control
 ## The main menu - the first screen the player sees.
 ##
-## It shows the title, the player's total coins, and two buttons: Play and
-## Garage. Built in code so there are no image dependencies.
+## It shows the title, the player's total coins, Play/Garage, and audio options
+## (music on/off, change track, sfx on/off). Built in code, no image assets.
+
+var _music_button: Button
+var _track_button: Button
+var _sfx_button: Button
+
 
 func _ready() -> void:
 	# Solid background.
@@ -60,6 +65,25 @@ func _ready() -> void:
 	garage.pressed.connect(_on_garage)
 	box.add_child(garage)
 
+	# --- Audio options ----------------------------------------------------
+	var spacer2 := Control.new()
+	spacer2.custom_minimum_size = Vector2(0, 16)
+	box.add_child(spacer2)
+
+	_music_button = _make_small_button("")
+	_music_button.pressed.connect(_on_toggle_music)
+	box.add_child(_music_button)
+
+	_track_button = _make_small_button("")
+	_track_button.pressed.connect(_on_next_track)
+	box.add_child(_track_button)
+
+	_sfx_button = _make_small_button("")
+	_sfx_button.pressed.connect(_on_toggle_sfx)
+	box.add_child(_sfx_button)
+
+	_refresh_audio_labels()
+
 
 func _make_button(text: String) -> Button:
 	var button := Button.new()
@@ -69,9 +93,44 @@ func _make_button(text: String) -> Button:
 	return button
 
 
+func _make_small_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(360, 64)
+	button.add_theme_font_size_override("font_size", 28)
+	return button
+
+
+## Update the audio button labels to reflect the current settings.
+func _refresh_audio_labels() -> void:
+	_music_button.text = "Music: On" if GameData.music_on else "Music: Off"
+	_track_button.text = "Track: " + AudioManager.current_track_name()
+	_sfx_button.text = "SFX: On" if GameData.sfx_on else "SFX: Off"
+
+
+func _on_toggle_music() -> void:
+	AudioManager.play_sfx("click")
+	AudioManager.toggle_music()
+	_refresh_audio_labels()
+
+
+func _on_next_track() -> void:
+	AudioManager.next_track()
+	AudioManager.play_sfx("click")
+	_refresh_audio_labels()
+
+
+func _on_toggle_sfx() -> void:
+	AudioManager.set_sfx_enabled(not GameData.sfx_on)
+	AudioManager.play_sfx("click")   # plays only if SFX were just turned on
+	_refresh_audio_labels()
+
+
 func _on_play() -> void:
+	AudioManager.play_sfx("click")
 	get_tree().change_scene_to_file("res://scenes/Game.tscn")
 
 
 func _on_garage() -> void:
+	AudioManager.play_sfx("click")
 	get_tree().change_scene_to_file("res://ui/Garage.tscn")

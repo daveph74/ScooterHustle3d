@@ -18,5 +18,14 @@ requirement is to retain the copyright notice — which this file does.
 > models as stand-ins. The **tricycle** has no off-the-shelf model and is still
 > built procedurally from primitives in `traffic/TrafficVehicle.gd`.
 
-Everything else (code, scenes, the scooter/traffic gameplay, UI) is original to
-this project.
+## Audio
+
+The music loops (`audio/music/`) and sound effects (`audio/sfx/`) are
+**procedurally generated** chiptune, synthesised from scratch with a small
+Python script (no samples, no third-party audio). They are original to this
+project and carry no external licence obligations.
+
+## Everything else
+
+All code, scenes, the scooter/traffic gameplay and UI are original to this
+project.

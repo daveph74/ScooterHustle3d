@@ -18,6 +18,11 @@ var total_coins: int = 0
 var unlocked_ids: Array = ["rusty"]   # the Rusty Scooter is always free
 var selected_id: String = "rusty"
 
+# Audio settings (read/written by AudioManager, saved with everything else).
+var music_on: bool = true
+var sfx_on: bool = true
+var music_track: int = 0
+
 
 func _ready() -> void:
 	_load_scooter_defs()
@@ -85,6 +90,9 @@ func save_game() -> void:
 		"total_coins": total_coins,
 		"unlocked_ids": unlocked_ids,
 		"selected_id": selected_id,
+		"music_on": music_on,
+		"sfx_on": sfx_on,
+		"music_track": music_track,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -106,6 +114,9 @@ func load_game() -> void:
 	total_coins = int(parsed.get("total_coins", 0))
 	unlocked_ids = parsed.get("unlocked_ids", ["rusty"])
 	selected_id = String(parsed.get("selected_id", "rusty"))
+	music_on = bool(parsed.get("music_on", true))
+	sfx_on = bool(parsed.get("sfx_on", true))
+	music_track = int(parsed.get("music_track", 0))
 	# Safety: make sure the rusty scooter is always owned.
 	if not ("rusty" in unlocked_ids):
 		unlocked_ids.append("rusty")

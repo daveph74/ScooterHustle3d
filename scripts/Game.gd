@@ -500,12 +500,14 @@ func _on_near_miss() -> void:
 	score_bonus += 25
 	_add_shake(0.15, 0.15)
 	hud.flash_near_miss()
+	AudioManager.play_sfx("near_miss")
 
 
 func _on_coin_collected(amount: int) -> void:
 	run_coins += amount
 	hud.set_run_coins(run_coins)
 	hud.pulse_coin()
+	AudioManager.play_sfx("coin")
 
 
 # ==========================================================================
@@ -517,6 +519,7 @@ func _on_player_crashed() -> void:
 		return
 	playing = false
 	_add_shake(0.6, 0.6)   # a hard jolt on impact
+	AudioManager.play_sfx("crash")
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)
