@@ -56,6 +56,13 @@ var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
 const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
 
+# All traffic shares ONE speed (as a fraction of the player's), so vehicles
+# keep their formation and never drift into an impossible 3-lane wall.
+const TRAFFIC_SPEED_FRACTION := 0.45
+# The lane that is GUARANTEED open in the current row of traffic. It only ever
+# moves one lane at a time, so the player can always follow it with one swipe.
+var _safe_lane := 1
+
 # --- Run state ------------------------------------------------------------
 var distance := 0.0            # metres travelled this run
 var score := 0                 # shown on the HUD (distance + near-miss bonus)
@@ -139,7 +146,7 @@ func _process(delta: float) -> void:
 
 	# --- Gentle difficulty ramp (no sudden spikes) ------------------------
 	speed = minf(base_speed + elapsed * 0.35, MAX_SPEED)
-	traffic_interval = maxf(0.7, 1.6 - elapsed * 0.012)
+	traffic_interval = maxf(0.85, 1.6 - elapsed * 0.012)
 
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
@@ -298,31 +305,37 @@ func _spawn_traffic() -> void:
 	_spawn_traffic_at(SPAWN_Z)
 
 
-## Spawn traffic at a given distance ahead. Used both for normal spawning (at
-## SPAWN_Z) and for pre-populating the road at startup.
+## Spawn a "row" of traffic at the given distance ahead. A row NEVER blocks all
+## three lanes: the current safe lane is always left open. Used both for normal
+## spawning (at SPAWN_Z) and for pre-populating the road at startup.
 func _spawn_traffic_at(z: float) -> void:
 	var types := ["jeepney", "tricycle", "bus", "car"]
-	var lane := randi() % 3
 
-	var vehicle := TRAFFIC_SCENE.instantiate()
-	traffic_container.add_child(vehicle)
-	vehicle.setup(types[randi() % types.size()])
-	vehicle.position = Vector3(LANES_X[lane], 0.0, z)
-	vehicle.set_meta("bx", LANES_X[lane])
-	vehicle.set_meta("by", 0.0)
-	vehicle.drive_speed = randf_range(0.35, 0.7) * base_speed
+	# The two lanes that are not the guaranteed-open one.
+	var other_lanes: Array[int] = []
+	for lane in [0, 1, 2]:
+		if lane != _safe_lane:
+			other_lanes.append(lane)
 
-	# Later in the run, sometimes add a second vehicle in a DIFFERENT lane.
-	# We never fill all three lanes, so there is always a way through.
-	if elapsed > 18.0 and randf() < 0.4:
-		var lane2 := (lane + 1 + (randi() % 2)) % 3
-		var vehicle2 := TRAFFIC_SCENE.instantiate()
-		traffic_container.add_child(vehicle2)
-		vehicle2.setup(types[randi() % types.size()])
-		vehicle2.position = Vector3(LANES_X[lane2], 0.0, z - randf_range(4.0, 12.0))
-		vehicle2.set_meta("bx", LANES_X[lane2])
-		vehicle2.set_meta("by", 0.0)
-		vehicle2.drive_speed = randf_range(0.35, 0.7) * base_speed
+	# Later in the run, sometimes block BOTH other lanes (only the safe lane is
+	# open - harder). Early on, block just one (two lanes open - easy).
+	var block_both := elapsed > 20.0 and randf() < 0.5
+	var blocked := other_lanes if block_both else [other_lanes[randi() % other_lanes.size()]]
+
+	for lane in blocked:
+		var vehicle := TRAFFIC_SCENE.instantiate()
+		traffic_container.add_child(vehicle)
+		vehicle.setup(types[randi() % types.size()])
+		vehicle.position = Vector3(LANES_X[lane], 0.0, z)
+		vehicle.set_meta("bx", LANES_X[lane])
+		vehicle.set_meta("by", 0.0)
+		vehicle.drive_speed = TRAFFIC_SPEED_FRACTION * base_speed
+
+	# Only shift the safe lane when two lanes are open (there is room to cross).
+	# When only one lane is open we keep it put, so the player is never forced
+	# to change lanes through a tight gap.
+	if not block_both:
+		_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, 2)
 
 
 ## Put some traffic on the road at startup so it isn't empty for the first few
@@ -364,8 +377,9 @@ func _check_near_miss(vehicle: Node3D) -> void:
 # ==========================================================================
 
 ## Spawn a short line of coins in one lane - more satisfying than singles.
+## We use the safe lane so the coins gently guide the player along the open path.
 func _spawn_coin_line() -> void:
-	var lane := randi() % 3
+	var lane := _safe_lane
 	var count := randi_range(3, 5)
 	for i in range(count):
 		var coin := COIN_SCENE.instantiate()
