@@ -110,8 +110,13 @@ var _ground_material: StandardMaterial3D
 @onready var scenery_container: Node3D = $SceneryContainer
 @onready var powerup_container: Node3D = $PowerUpContainer
 @onready var powerups := $PowerUpManager
+@onready var events := $EventManager
 @onready var hud := $HUD
 @onready var game_over := $GameOverLayer
+
+# Rainstorm visuals (built in code, active only during a rainstorm event).
+var _rain: GPUParticles3D
+var _env: Environment
 
 
 func _ready() -> void:
@@ -141,6 +146,12 @@ func _ready() -> void:
 	player.coin_collected.connect(_on_coin_collected)
 	player.powerup_collected.connect(_on_powerup_collected)
 	player.shielded.connect(_on_shielded)
+
+	# Random events + the (idle) rainstorm visuals.
+	_env = $WorldEnvironment.environment
+	_build_rain()
+	events.event_started.connect(_on_event_started)
+	events.event_ended.connect(_on_event_ended)
 
 	# Prepare the UI.
 	game_over.hide_screen()
@@ -182,19 +193,20 @@ func _process(delta: float) -> void:
 	_scroll_powerups(move)
 
 	# --- Spawning ---------------------------------------------------------
+	# Spawn intervals are scaled by the active event (denser traffic/coins/etc).
 	traffic_timer -= delta
 	if traffic_timer <= 0.0:
-		traffic_timer = traffic_interval
+		traffic_timer = traffic_interval * events.traffic_interval_mult()
 		_spawn_traffic()
 
 	coin_timer -= delta
 	if coin_timer <= 0.0:
-		coin_timer = coin_interval
+		coin_timer = coin_interval * events.coin_interval_mult()
 		_spawn_coin_line()
 
 	scenery_timer -= delta
 	if scenery_timer <= 0.0:
-		scenery_timer = scenery_interval
+		scenery_timer = scenery_interval * events.scenery_interval_mult()
 		_spawn_scenery_at(SPAWN_Z)
 
 	powerup_timer -= delta
@@ -344,14 +356,17 @@ func _spawn_traffic_at(z: float) -> void:
 			other_lanes.append(lane)
 
 	# Later in the run, sometimes block BOTH other lanes (only the safe lane is
-	# open - harder). Early on, block just one (two lanes open - easy).
-	var block_both := elapsed > 20.0 and randf() < 0.5
+	# open - harder). Early on, block just one (two lanes open - easy). The
+	# active event can bias toward heavier rows, but the safe lane is NEVER
+	# blocked, so the run stays solvable.
+	var block_both := elapsed > 20.0 and randf() < (0.5 + events.block_both_bias())
 	var blocked: Array = []
 	if block_both:
 		blocked = other_lanes            # block both non-safe lanes
 	else:
 		blocked.append(other_lanes[randi() % other_lanes.size()])  # block just one
 
+	var traffic_speed := TRAFFIC_SPEED_FRACTION * base_speed * events.traffic_speed_mult()
 	for lane in blocked:
 		var vehicle := TRAFFIC_SCENE.instantiate()
 		traffic_container.add_child(vehicle)
@@ -359,7 +374,7 @@ func _spawn_traffic_at(z: float) -> void:
 		vehicle.position = Vector3(LANES_X[lane], 0.0, z)
 		vehicle.set_meta("bx", LANES_X[lane])
 		vehicle.set_meta("by", 0.0)
-		vehicle.drive_speed = TRAFFIC_SPEED_FRACTION * base_speed
+		vehicle.drive_speed = traffic_speed
 
 	# Only shift the safe lane when two lanes are open (there is room to cross).
 	# When only one lane is open we keep it put, so the player is never forced
@@ -410,7 +425,8 @@ func _check_near_miss(vehicle: Node3D) -> void:
 ## We use the safe lane so the coins gently guide the player along the open path.
 func _spawn_coin_line() -> void:
 	var lane := _safe_lane
-	var count := randi_range(3, 5)
+	# Coin-rich events (fiesta/market) add extra coins to each line.
+	var count := randi_range(3, 5) + events.coin_line_bonus()
 	for i in range(count):
 		var coin := COIN_SCENE.instantiate()
 		coin_container.add_child(coin)
@@ -586,6 +602,67 @@ func _on_powerup_collected(kind: String) -> void:
 func _on_shielded() -> void:
 	AudioManager.play_sfx("shield")
 	_add_shake(0.25, 0.25)
+
+
+# ==========================================================================
+#  RANDOM EVENTS (banner + rainstorm visuals)
+# ==========================================================================
+
+func _on_event_started(display_name: String) -> void:
+	hud.show_event_banner(display_name)
+	if events.is_raining():
+		_set_rain(true)
+
+
+func _on_event_ended() -> void:
+	_set_rain(false)
+
+
+## Build the rain emitter once (idle until a rainstorm event). Parented to the
+## camera so it always falls in view; modest particle count for mobile.
+func _build_rain() -> void:
+	_rain = GPUParticles3D.new()
+	_rain.amount = 220
+	_rain.lifetime = 1.2
+	_rain.emitting = false
+	_rain.local_coords = false
+	_rain.visibility_aabb = AABB(Vector3(-24, -16, -30), Vector3(48, 32, 48))
+
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(16, 0.5, 20)
+	pm.direction = Vector3(0, -1, 0)
+	pm.gravity = Vector3(0, -35, 0)
+	pm.initial_velocity_min = 14.0
+	pm.initial_velocity_max = 18.0
+	_rain.process_material = pm
+
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.03, 0.5)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.7, 0.8, 0.95, 0.7)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	quad.material = mat
+	_rain.draw_pass_1 = quad
+
+	_rain.position = Vector3(0, 12, -12)   # above and ahead of the camera
+	camera.add_child(_rain)
+
+
+## Toggle the rainstorm look: rain particles + a light fog faded in/out. This is
+## the ONLY place fog is used - normal play stays clear (fog is off by default).
+func _set_rain(on: bool) -> void:
+	_rain.emitting = on
+	if on:
+		_env.fog_light_color = Color(0.6, 0.65, 0.72)
+		_env.fog_density = 0.0
+		_env.fog_enabled = true
+	var tween := create_tween()
+	tween.tween_property(_env, "fog_density", 0.035 if on else 0.0, 0.8)
+	if not on:
+		tween.tween_callback(func(): _env.fog_enabled = false)
 
 
 # ==========================================================================

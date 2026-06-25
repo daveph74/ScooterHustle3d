@@ -16,6 +16,7 @@ var _near_miss_label: Label
 var _combo_label: Label
 var _powerup_box: VBoxContainer
 var _powerup_rows := {}   # kind -> {row, bar}
+var _event_banner: Label
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
@@ -64,6 +65,15 @@ func _ready() -> void:
 	_powerup_box.add_theme_constant_override("separation", 6)
 	add_child(_powerup_box)
 
+	# Random-event banner, briefly shown near the top centre.
+	_event_banner = _make_label("", HORIZONTAL_ALIGNMENT_CENTER)
+	_event_banner.add_theme_font_size_override("font_size", 38)
+	_event_banner.add_theme_color_override("font_color", Color(0.35, 1.0, 0.5))
+	_event_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_event_banner.offset_top = 130
+	_event_banner.modulate.a = 0.0
+	add_child(_event_banner)
+
 
 ## Helper that builds a readable label (white text with a dark outline so it
 ## stays legible over the bright road).
@@ -104,6 +114,15 @@ func flash_near_miss() -> void:
 	_near_miss_label.modulate.a = 1.0
 	var tween := create_tween()
 	tween.tween_property(_near_miss_label, "modulate:a", 0.0, 0.6)
+
+
+## Briefly announce a random event (fades in then out).
+func show_event_banner(text: String) -> void:
+	_event_banner.text = text
+	var tween := create_tween()
+	tween.tween_property(_event_banner, "modulate:a", 1.0, 0.2)
+	tween.tween_interval(1.4)
+	tween.tween_property(_event_banner, "modulate:a", 0.0, 0.6)
 
 
 ## Show/update a power-up duration bar. remaining <= 0 removes it.
