@@ -205,25 +205,25 @@ func _build_road() -> void:
 
 
 ## Build one road tile: grass + asphalt + a dash on each lane divider.
-## Tiles are made slightly longer than their spacing so they overlap, which
-## hides any little seams once they are tilted along hills.
+## The grass overlaps generously (green-on-green is invisible) while the road
+## barely overlaps; tiles are tilted to the slope in _scroll_road so they join
+## into a continuous ribbon with no seams.
 func _make_road_segment() -> Node3D:
 	var segment := Node3D.new()
-	var overlap := SEGMENT_LENGTH + 0.6
 
 	# Wide grass, baked into the tile so the ground rolls with the hills.
 	var ground := MeshInstance3D.new()
 	var ground_plane := PlaneMesh.new()
-	ground_plane.size = Vector2(GROUND_WIDTH, overlap)
+	ground_plane.size = Vector2(GROUND_WIDTH, SEGMENT_LENGTH + 1.0)
 	ground.mesh = ground_plane
 	ground.material_override = _ground_material
 	ground.position.y = -0.04
 	segment.add_child(ground)
 
-	# Asphalt road on top.
+	# Asphalt road on top (tiny overlap so tilted tiles meet without a seam).
 	var road := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(ROAD_WIDTH, overlap)
+	plane.size = Vector2(ROAD_WIDTH, SEGMENT_LENGTH + 0.08)
 	road.mesh = plane
 	road.material_override = _road_material
 	segment.add_child(road)
@@ -242,17 +242,26 @@ func _make_road_segment() -> Node3D:
 
 
 ## Slide every road tile toward the player; recycle any that fall behind, and
-## displace each tile along the hill/bend path.
+## sit + tilt each tile on the hill/bend path so the road is one smooth ribbon.
 func _scroll_road(amount: float) -> void:
 	var total_length := SEGMENT_COUNT * SEGMENT_LENGTH
+	var half := SEGMENT_LENGTH * 0.5
 	for segment in _segments:
 		segment.position.z += amount
 		if segment.position.z > DESPAWN_Z + SEGMENT_LENGTH:
 			# Jump it back to the far end to make the road feel endless.
 			segment.position.z -= total_length
-		var off := _path_offset(segment.position.z)
-		segment.position.x = off.x
-		segment.position.y = off.y
+
+		var c := segment.position.z
+		var here := _path_offset(c)
+		var near := _path_offset(c + half)   # edge toward the player
+		var far := _path_offset(c - half)    # edge toward the horizon
+
+		segment.position.x = here.x
+		segment.position.y = here.y
+		# Pitch to the slope and yaw into the bend so neighbours line up.
+		segment.rotation.x = atan2(far.y - near.y, SEGMENT_LENGTH)
+		segment.rotation.y = atan2(near.x - far.x, SEGMENT_LENGTH)
 
 
 # ==========================================================================
@@ -261,11 +270,11 @@ func _scroll_road(amount: float) -> void:
 
 # Sideways displacement of the track at world position w (gentle, long bends).
 func _path_x(w: float) -> float:
-	return (sin(w * 0.0065) * 7.0 + sin(w * 0.017) * 2.5) * BEND_DIR
+	return (sin(w * 0.006) * 5.0 + sin(w * 0.015) * 2.0) * BEND_DIR
 
 # Vertical displacement of the track at world position w (small rolling hills).
 func _path_y(w: float) -> float:
-	return (sin(w * 0.020) * 1.4 + cos(w * 0.045) * 0.7) * HILL_DIR
+	return (sin(w * 0.020) * 1.2 + cos(w * 0.045) * 0.5) * HILL_DIR
 
 ## How far to displace an object that is currently at local z (z < 0 = ahead).
 ## We subtract the value at the player so the offset is zero right at z = 0.
