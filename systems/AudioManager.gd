@@ -38,8 +38,10 @@ func _ready() -> void:
 	add_child(_music_player)
 
 	# A small pool of players so overlapping sound effects don't cut each other.
+	# -6 dB halves the amplitude, i.e. sound effects at 50% volume.
 	for i in range(6):
 		var player := AudioStreamPlayer.new()
+		player.volume_db = -6.0
 		add_child(player)
 		_sfx_players.append(player)
 
