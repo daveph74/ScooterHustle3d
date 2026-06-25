@@ -10,7 +10,7 @@
 ## 0. TL;DR / Current State
 
 - **Engine:** Godot **4.7** stable. GDScript only. No C#. No external Godot plugins required to run.
-- **Status:** Playable vertical slice. Menu → gameplay → game over → garage all work. Audio, 3D models, hills/bends, fair traffic, persistence all implemented and tested in-editor by the project owner.
+- **Status:** Playable vertical slice. Menu → gameplay → game over → garage all work. Audio, 3D models, hills/bends, fair traffic, persistence all implemented and tested in-editor by the project owner. **Save v2** adds five engagement systems — daily missions, combo/streak, power-ups, cosmetics, random events — documented in **§13**.
 - **Platform target:** Mobile (Android), **portrait** 1080×1920, touch swipe controls (keyboard for desktop testing).
 - **Repo branch:** `claude/elegant-lamport-nv40yn`. There is a **draft PR #1** into `main` (which is an empty root commit). Everything is committed and pushed.
 - **Main scene:** `res://ui/MainMenu.tscn`.
@@ -336,14 +336,89 @@ part upgrades. Keep it an arcade, 3-lane, left/right runner.
 
 ---
 
-## 13. Glossary of the Important Symbols
+## 13. Engagement Systems (added in save v2)
+
+Five retention systems. Each lives in its own file and plugs into the existing
+Game.gd hooks. **None of them touch the safe-lane guarantee or the core
+left/right controls.** Autoload order is now `GameData → AudioManager →
+MissionManager`; `PowerUpManager` and `EventManager` are nodes in `Game.tscn`;
+`ComboSystem` is a plain per-run object in `Game.gd`.
+
+### Save schema v2 (`systems/GameData.gd`)
+- `version` (=2). Migration is additive — `load_game()` defaults any missing
+  key, so v1 saves load cleanly.
+- New persisted fields: `daily_missions` ({date, missions[]}), `owned_cosmetics`,
+  `equipped_cosmetics`. Power-ups are in-run only (not saved).
+- New helpers: `try_buy_cosmetic`, `equip_cosmetic`, `get_equipped`, `is_cosmetic_owned`.
+
+### Daily Missions — `systems/MissionManager.gd` (autoload)
+- Generates 3 missions/day from `MISSION_POOL`, seeded by the date
+  (`Time.get_date_string_from_system()`) so they're stable all day and reset
+  automatically when the date changes.
+- `report(type, amount)` accumulates progress (additive for coins/near_miss/
+  runs/distance, max for score); `claim(id)` pays via `GameData.add_coins`;
+  `has_claimable()` drives the menu ★ badge.
+- Hooked in Game.gd: coins/near-miss live; distance/score/runs at crash, then
+  `save_now()`. UI: `ui/DailyMissions.tscn` (opened from the main menu).
+
+### Combo / Streak — `systems/ComboSystem.gd` (per-run RefCounted)
+- 5/15/30 coins → x2/x3/x4. `on_coin()` (true on milestone), `on_miss()`,
+  `on_crash()`, `multiplier()`.
+- **Scoring changed**: `score = int(score_value)`, where each frame
+  `score_value += move * combo.multiplier() * powerups.score_mult()` (replaces
+  the old `int(distance) + score_bonus`). Near miss adds `25 * multiplier`.
+- Missed coin = a coin scrolls past `DESPAWN_Z` with `is_collected()` false →
+  `on_miss()`. HUD `set_combo()`; coin SFX pitched by multiplier.
+
+### Power-Ups — `powerups/PowerUp.gd` (base) + `systems/PowerUpManager.gd` (node)
+- `PowerUp` Area3D (layer 8, group "powerup", procedural icon). Spawns rarely
+  (`POWERUP_MIN/MAX_GAP`) **in the safe lane** so it's always reachable.
+- Player `collision_mask = 14` also detects power-ups; emits `powerup_collected(kind)`.
+- Effects: **magnet** 10s (pulls coins in `_scroll_coins`), **shield** until-hit
+  (Player `shield_active` absorbs one hit, emits `shielded`), **multiplier** 15s
+  (`coin_value_mult()` doubles coins), **speed** 8s (`speed_bonus()` small real
+  bump + `score_mult()` 1.5×). HUD `show_powerup_duration()` bars. New SFX:
+  `powerup`, `shield`.
+
+### Cosmetics — `systems/Cosmetics.gd` (catalogue + applier)
+- **Model-agnostic** (built to survive the planned art swap): paint recolours
+  all meshes; wheel tints `*wheel*`-named meshes (a no-op until a custom model
+  exposes them); helmet attaches a primitive at `ATTACH.helmet` (player-space —
+  the ONE offset to retune for a new model).
+- Applied in `Player._ready` from `GameData.equipped_cosmetics`. Purely cosmetic.
+- Garage gains Scooters/Cosmetics tabs; cards show a swatch + BUY/EQUIP/EQUIPPED.
+
+### Random Events — `systems/EventManager.gd` (node)
+- One at a time, every 30–90 s, ~12 s each: traffic_jam, fiesta, rainstorm,
+  market, school_zone.
+- Exposes **multipliers** Game applies to its existing spawners
+  (`traffic_interval_mult`, `traffic_speed_mult`, `block_both_bias`,
+  `coin_interval_mult`, `coin_line_bonus`, `scenery_interval_mult`, `is_raining`).
+  **Safe lane always stays open; world speed is never raised.**
+- Rainstorm = event-only rain `GPUParticles3D` (parented to the camera) + a
+  light fog faded in/out via `_set_rain()` — default play stays clear. HUD
+  `show_event_banner()`.
+
+### New tuning knobs
+- Missions: `MissionManager.MISSION_POOL`, `MISSIONS_PER_DAY`.
+- Combo: tiers in `ComboSystem.multiplier()`.
+- Power-ups: `PowerUpManager.DURATIONS / MAGNET_RANGE / SPEED_BONUS_FRACTION /
+  SPEED_SCORE_MULT`; spawn gap `Game.POWERUP_MIN/MAX_GAP`.
+- Cosmetics: `Cosmetics.PAINT / HELMET / WHEEL` + `ATTACH`.
+- Events: `EventManager.EVENTS` (timing + multipliers).
+
+---
+
+## 14. Glossary of the Important Symbols
 
 - `distance` — metres travelled this run; monotonic; drives score & difficulty.
+- `score_value` — accumulated score (distance × combo × speed-score-mult + bonuses); `score = int(score_value)`.
 - `_safe_lane` — the lane guaranteed open in the current traffic row.
 - `bx` / `by` (node metadata) — an object's base X/Y before path displacement.
 - `_path_offset(z)` — the (x,y) visual displacement for an object at local z.
 - `drive_speed` — a traffic vehicle's forward speed (uniform across all traffic).
+- `shield_active` — Player flag set by a shield power-up; absorbs one hit.
+- `owned_cosmetics` / `equipped_cosmetics` — saved cosmetic state.
 - `*_FACES_BACK` — per-model 180° flip flags for imported vehicle orientation.
 - `HILL_DIR` / `BEND_DIR` — sign flips for the hill/bend direction.
 - `ModelUtil.instance_fitted` — drop any `.glb` in at the right size automatically.
-```
