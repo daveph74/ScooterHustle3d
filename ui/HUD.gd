@@ -13,6 +13,7 @@ var _run_label: Label
 var _score_label: Label
 var _total_label: Label
 var _near_miss_label: Label
+var _combo_label: Label
 
 
 func _ready() -> void:
@@ -39,6 +40,15 @@ func _ready() -> void:
 	_near_miss_label.offset_top = 220
 	_near_miss_label.modulate.a = 0.0   # invisible to start
 	add_child(_near_miss_label)
+
+	# Combo / streak indicator, centred a bit lower, hidden when there's no combo.
+	_combo_label = _make_label("", HORIZONTAL_ALIGNMENT_CENTER)
+	_combo_label.add_theme_font_size_override("font_size", 40)
+	_combo_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.15))
+	_combo_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_combo_label.offset_top = 300
+	_combo_label.modulate.a = 0.0
+	add_child(_combo_label)
 
 
 ## Helper that builds a readable label (white text with a dark outline so it
@@ -80,3 +90,18 @@ func flash_near_miss() -> void:
 	_near_miss_label.modulate.a = 1.0
 	var tween := create_tween()
 	tween.tween_property(_near_miss_label, "modulate:a", 0.0, 0.6)
+
+
+## Update the combo indicator. count 0 hides it; "milestone" gives it a pop.
+func set_combo(count: int, multiplier: int, milestone: bool = false) -> void:
+	if count <= 0:
+		_combo_label.modulate.a = 0.0
+		return
+	_combo_label.text = "x%d  COMBO %d" % [multiplier, count]
+	_combo_label.modulate = Color(1.0, 0.45, 0.15, 1.0)
+	if milestone:
+		# Quick scale pop around the label's centre.
+		_combo_label.pivot_offset = _combo_label.size * 0.5
+		_combo_label.scale = Vector2(1.4, 1.4)
+		var tween := create_tween()
+		tween.tween_property(_combo_label, "scale", Vector2.ONE, 0.2)

@@ -83,13 +83,16 @@ func current_track_name() -> String:
 
 # --- Sound effects --------------------------------------------------------
 
-func play_sfx(name: String) -> void:
+## Play a sound effect. Optional pitch (1.0 = normal) lets callers raise the
+## pitch for things like rising combo milestones.
+func play_sfx(name: String, pitch: float = 1.0) -> void:
 	if not GameData.sfx_on or not SFX.has(name):
 		return
 	# Round-robin through the pool so a new effect never cuts off the last one.
 	var player := _sfx_players[_sfx_index]
 	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
 	player.stream = SFX[name]
+	player.pitch_scale = pitch
 	player.play()
 
 

@@ -65,11 +65,14 @@ var _safe_lane := 1
 
 # --- Run state ------------------------------------------------------------
 var distance := 0.0            # metres travelled this run
-var score := 0                 # shown on the HUD (distance + near-miss bonus)
-var score_bonus := 0           # extra points from near misses
+var score := 0                 # shown on the HUD (int of score_value)
+var score_value := 0.0         # accumulated score (distance gain x combo, + bonuses)
 var run_coins := 0             # coins collected this run
 var elapsed := 0.0             # seconds since the run started
 var playing := false
+
+# Combo/streak tracker (fresh per run, so it resets when the scene reloads).
+var combo := ComboSystem.new()
 
 # --- Spawn timers ---------------------------------------------------------
 var traffic_timer := 0.0
@@ -151,7 +154,10 @@ func _process(delta: float) -> void:
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
 	distance += move
-	score = int(distance) + score_bonus
+	# Score gain is scaled by the current combo multiplier (and later by the
+	# speed-boost power-up), so keeping a streak makes the score climb faster.
+	score_value += move * combo.multiplier()
+	score = int(score_value)
 
 	_scroll_road(move)
 	# Each vehicle drives at its own speed, so the player overtakes slower
@@ -398,6 +404,10 @@ func _scroll_coins(amount: float) -> void:
 		coin.position.z += amount
 		_apply_path(coin)
 		if coin.position.z > DESPAWN_Z:
+			# A coin that scrolled past uncollected breaks the combo streak.
+			if not coin.is_collected():
+				combo.on_miss()
+				hud.set_combo(0, 1)
 			coin.queue_free()
 
 
@@ -501,7 +511,7 @@ func _update_shake(delta: float) -> void:
 
 
 func _on_near_miss() -> void:
-	score_bonus += 25
+	score_value += 25.0 * combo.multiplier()
 	_add_shake(0.15, 0.15)
 	hud.flash_near_miss()
 	AudioManager.play_sfx("near_miss")
@@ -512,8 +522,12 @@ func _on_coin_collected(amount: int) -> void:
 	run_coins += amount
 	hud.set_run_coins(run_coins)
 	hud.pulse_coin()
-	AudioManager.play_sfx("coin")
 	MissionManager.report("coins", amount)
+
+	# Grow the combo and raise the coin pitch with the multiplier.
+	var milestone := combo.on_coin()
+	hud.set_combo(combo.count, combo.multiplier(), milestone)
+	AudioManager.play_sfx("coin", 1.0 + combo.multiplier() * 0.08)
 
 
 # ==========================================================================
@@ -526,6 +540,8 @@ func _on_player_crashed() -> void:
 	playing = false
 	_add_shake(0.6, 0.6)   # a hard jolt on impact
 	AudioManager.play_sfx("crash")
+	combo.on_crash()
+	hud.set_combo(0, 1)
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)

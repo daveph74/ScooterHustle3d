@@ -37,6 +37,12 @@ func _process(delta: float) -> void:
 	rotate_y(SPIN_SPEED * delta)
 
 
+## Whether this coin was picked up (used to detect a "missed" coin when it
+## scrolls past the player, which breaks the combo streak).
+func is_collected() -> bool:
+	return _collected
+
+
 ## Play a quick pickup animation, then remove the coin.
 func collect() -> void:
 	if _collected:
