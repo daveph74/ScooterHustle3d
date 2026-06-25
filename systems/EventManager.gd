@@ -1,4 +1,5 @@
 extends Node
+class_name EventManager
 ## EventManager - drives short, flavourful "Philippine road" events.
 ##
 ## A Node child of Game (resets each run). Only ONE event is active at a time;

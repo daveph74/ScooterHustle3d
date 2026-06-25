@@ -109,8 +109,8 @@ var _ground_material: StandardMaterial3D
 @onready var coin_container: Node3D = $CoinContainer
 @onready var scenery_container: Node3D = $SceneryContainer
 @onready var powerup_container: Node3D = $PowerUpContainer
-@onready var powerups := $PowerUpManager
-@onready var events := $EventManager
+@onready var powerups: PowerUpManager = $PowerUpManager
+@onready var events: EventManager = $EventManager
 @onready var hud := $HUD
 @onready var game_over := $GameOverLayer
 

@@ -1,4 +1,5 @@
 extends Node
+class_name PowerUpManager
 ## PowerUpManager - tracks the player's ACTIVE power-up effects for one run.
 ##
 ## A Node child of Game (not an autoload) so it resets each run. Game/Player ask
