@@ -320,7 +320,11 @@ func _spawn_traffic_at(z: float) -> void:
 	# Later in the run, sometimes block BOTH other lanes (only the safe lane is
 	# open - harder). Early on, block just one (two lanes open - easy).
 	var block_both := elapsed > 20.0 and randf() < 0.5
-	var blocked := other_lanes if block_both else [other_lanes[randi() % other_lanes.size()]]
+	var blocked: Array = []
+	if block_both:
+		blocked = other_lanes            # block both non-safe lanes
+	else:
+		blocked.append(other_lanes[randi() % other_lanes.size()])  # block just one
 
 	for lane in blocked:
 		var vehicle := TRAFFIC_SCENE.instantiate()
