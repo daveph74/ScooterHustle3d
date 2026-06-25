@@ -1,0 +1,13 @@
+# Godot 4 auto-generated files
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Mono / .NET (unused, but safe to ignore)
+.mono/
+data_*/
+
+# OS / editor noise
+*.swp
+.DS_Store

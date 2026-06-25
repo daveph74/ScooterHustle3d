@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ScooterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/ScooterData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "sport"
+display_name = "Sport Bike"
+speed = 2.2
+handling = 1.5
+price = 1800
+description = "The fastest ride in the garage. Only for confident riders."

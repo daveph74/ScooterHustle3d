@@ -1,0 +1,64 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/Game.gd" id="1"]
+[ext_resource type="PackedScene" path="res://vehicles/Player.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://ui/HUD.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://ui/GameOver.tscn" id="4"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+sky_top_color = Color(0.35, 0.6, 0.92, 1)
+sky_horizon_color = Color(0.72, 0.82, 0.9, 1)
+ground_horizon_color = Color(0.72, 0.82, 0.9, 1)
+ground_bottom_color = Color(0.5, 0.55, 0.5, 1)
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_mat")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 3
+ambient_light_energy = 1.0
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.72, 0.82, 0.9, 1)
+fog_density = 0.012
+
+[sub_resource type="StandardMaterial3D" id="ground_mat"]
+albedo_color = Color(0.32, 0.42, 0.26, 1)
+roughness = 1.0
+
+[sub_resource type="PlaneMesh" id="ground_mesh"]
+size = Vector2(140, 600)
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, -180)
+mesh = SubResource("ground_mesh")
+material_override = SubResource("ground_mat")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.2, 7)
+
+[node name="RoadContainer" type="Node3D" parent="."]
+
+[node name="TrafficContainer" type="Node3D" parent="."]
+
+[node name="CoinContainer" type="Node3D" parent="."]
+
+[node name="Player" parent="." instance=ExtResource("2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="HUD" parent="." instance=ExtResource("3")]
+
+[node name="GameOverLayer" parent="." instance=ExtResource("4")]

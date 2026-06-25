@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://traffic/TrafficVehicle.gd" id="1"]
+
+[sub_resource type="BoxMesh" id="mesh"]
+size = Vector3(1.4, 1.4, 2.6)
+
+[sub_resource type="BoxShape3D" id="shape"]
+size = Vector3(1.4, 1.4, 2.6)
+
+[node name="TrafficVehicle" type="Area3D"]
+collision_layer = 2
+collision_mask = 0
+monitoring = false
+script = ExtResource("1")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("mesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("shape")
