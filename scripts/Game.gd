@@ -45,7 +45,6 @@ const DESPAWN_Z := 14.0        # objects past this (behind player) are removed
 var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
 const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
-var traffic_extra_speed := 1.0 # traffic comes at us a touch faster than the road
 
 # --- Run state ------------------------------------------------------------
 var distance := 0.0            # metres travelled this run
@@ -130,7 +129,6 @@ func _process(delta: float) -> void:
 	# --- Gentle difficulty ramp (no sudden spikes) ------------------------
 	speed = minf(base_speed + elapsed * 0.35, MAX_SPEED)
 	traffic_interval = maxf(0.7, 1.6 - elapsed * 0.012)
-	traffic_extra_speed = minf(6.0, 1.0 + elapsed * 0.03)
 
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
@@ -138,8 +136,9 @@ func _process(delta: float) -> void:
 	score = int(distance) + score_bonus
 
 	_scroll_road(move)
-	# Traffic moves a little faster than the road so it feels like oncoming.
-	_scroll_traffic((speed + traffic_extra_speed) * delta)
+	# Each vehicle drives at its own speed, so the player overtakes slower
+	# traffic - that relative motion is what makes traffic look alive.
+	_scroll_traffic(delta)
 	_scroll_coins(move)
 	_scroll_scenery(move)
 
@@ -245,6 +244,7 @@ func _spawn_traffic_at(z: float) -> void:
 	traffic_container.add_child(vehicle)
 	vehicle.setup(types[randi() % types.size()])
 	vehicle.position = Vector3(LANES_X[lane], 0.0, z)
+	vehicle.drive_speed = randf_range(0.35, 0.7) * base_speed
 
 	# Later in the run, sometimes add a second vehicle in a DIFFERENT lane.
 	# We never fill all three lanes, so there is always a way through.
@@ -254,6 +254,7 @@ func _spawn_traffic_at(z: float) -> void:
 		traffic_container.add_child(vehicle2)
 		vehicle2.setup(types[randi() % types.size()])
 		vehicle2.position = Vector3(LANES_X[lane2], 0.0, z - randf_range(4.0, 12.0))
+		vehicle2.drive_speed = randf_range(0.35, 0.7) * base_speed
 
 
 ## Put some traffic on the road at startup so it isn't empty for the first few
@@ -265,9 +266,12 @@ func _prewarm_traffic() -> void:
 		z -= randf_range(20.0, 34.0)
 
 
-func _scroll_traffic(amount: float) -> void:
+func _scroll_traffic(delta: float) -> void:
 	for vehicle in traffic_container.get_children():
-		vehicle.position.z += amount
+		# The world scrolls toward the player at "speed"; the vehicle is also
+		# driving forward at its own speed, so it closes on the player at the
+		# difference. Since the player is faster, we always overtake it.
+		vehicle.position.z += (speed - vehicle.drive_speed) * delta
 		_check_near_miss(vehicle)
 		if vehicle.position.z > DESPAWN_Z:
 			vehicle.queue_free()

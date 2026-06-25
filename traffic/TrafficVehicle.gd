@@ -23,6 +23,11 @@ const TRAFFIC_FACES_BACK := true
 const GLASS := Color(0.55, 0.75, 0.9)
 const TYRE := Color(0.1, 0.1, 0.12)
 
+## How fast this vehicle drives forward (away from the player), in world units
+## per second. Set by Game.gd at spawn. Because the player is faster, the player
+## overtakes traffic - which is what makes the traffic look like it's moving.
+var drive_speed := 0.0
+
 
 func _ready() -> void:
 	# Put every vehicle in the "traffic" group so the player can recognise a
