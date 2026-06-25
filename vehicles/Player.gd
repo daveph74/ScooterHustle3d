@@ -27,6 +27,13 @@ var lane_change_speed := 9.0
 # Once we crash we stop responding to input.
 var alive := true
 
+# --- Visual model ---------------------------------------------------------
+# The scooter mesh (Kenney "Car Kit" motorcycle, MIT licensed). The model is
+# auto-scaled to fit, so we only ever tweak this facing flag if it points the
+# wrong way down the road.
+const SCOOTER_MODEL := preload("res://models/vehicle-motorcycle.glb")
+const SCOOTER_FACES_BACK := false
+
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
 var _touch_start_x := 0.0
@@ -34,8 +41,8 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 
 
 func _ready() -> void:
-	# Build the low-poly scooter + rider out of simple primitives.
-	_build_scooter()
+	# Drop in the scooter model, auto-fitted to the player's size.
+	ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_FACES_BACK)
 
 	# Read the selected scooter's handling so better bikes feel snappier.
 	var scooter := GameData.get_selected_scooter()
@@ -124,64 +131,3 @@ func _on_area_entered(area: Area3D) -> void:
 func _die() -> void:
 	alive = false
 	crashed.emit()
-
-
-# --- Building the scooter model (forward is -Z, so the front is at -Z) -----
-func _build_scooter() -> void:
-	var body := Color(0.85, 0.2, 0.25)        # red scooter paint
-	var dark := Color(0.12, 0.12, 0.14)        # tyres / seat
-	var helmet := Color(0.95, 0.82, 0.15)      # rider helmet
-
-	# Floor deck the rider stands on.
-	_box(Vector3(0.42, 0.12, 1.0), Vector3(0, 0.34, 0.05), body)
-	# Rear body / engine cover.
-	_box(Vector3(0.46, 0.5, 0.7), Vector3(0, 0.6, 0.35), body)
-	# Seat.
-	_box(Vector3(0.42, 0.16, 0.5), Vector3(0, 0.86, 0.4), dark)
-	# Front steering column.
-	_box(Vector3(0.16, 0.7, 0.18), Vector3(0, 0.72, -0.6), body)
-	# Handlebars.
-	_box(Vector3(0.6, 0.08, 0.08), Vector3(0, 1.02, -0.58), dark)
-	# Headlight.
-	_box(Vector3(0.2, 0.18, 0.1), Vector3(0, 0.78, -0.72), Color(1, 0.95, 0.7))
-	# Wheels.
-	_wheel(0.32, Vector3(0, 0.32, -0.66), dark)
-	_wheel(0.34, Vector3(0, 0.34, 0.6), dark)
-
-	# Rider sitting on the seat.
-	_box(Vector3(0.34, 0.5, 0.32), Vector3(0, 1.12, 0.2), Color(0.2, 0.35, 0.7))   # torso
-	_box(Vector3(0.26, 0.28, 0.28), Vector3(0, 1.48, 0.12), helmet)                # head
-
-
-# Add a coloured box to the Model node and return it.
-func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
-	var mesh_instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh_instance.mesh = mesh
-	mesh_instance.position = pos
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.7
-	mesh_instance.material_override = material
-	$Model.add_child(mesh_instance)
-	return mesh_instance
-
-
-# Add a wheel (a cylinder turned so its axle runs left-right across the bike).
-func _wheel(radius: float, pos: Vector3, color: Color) -> MeshInstance3D:
-	var mesh_instance := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = 0.18
-	mesh.radial_segments = 16
-	mesh_instance.mesh = mesh
-	mesh_instance.position = pos
-	mesh_instance.rotation_degrees = Vector3(0, 0, 90)   # spin axis -> X (left-right)
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.9
-	mesh_instance.material_override = material
-	$Model.add_child(mesh_instance)
-	return mesh_instance

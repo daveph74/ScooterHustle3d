@@ -16,6 +16,20 @@ extends Node3D
 const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
 
+# Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
+# trees are placed off to the sides and scroll past for a sense of a city.
+const BUILDING_MODELS := [
+	preload("res://models/building-small-a.glb"),
+	preload("res://models/building-small-b.glb"),
+	preload("res://models/building-small-c.glb"),
+	preload("res://models/building-small-d.glb"),
+	preload("res://models/building-garage.glb"),
+]
+const TREE_MODELS := [
+	preload("res://models/grass-trees.glb"),
+	preload("res://models/grass-trees-tall.glb"),
+]
+
 # --- Lane layout (must match Player.gd) -----------------------------------
 const LANE_WIDTH := 2.5
 const LANES_X := [-2.5, 0.0, 2.5]   # world X of the three lane centres
@@ -46,6 +60,9 @@ var traffic_timer := 0.0
 var traffic_interval := 1.5    # seconds between traffic spawns (shrinks over time)
 var coin_timer := 0.0
 var coin_interval := 1.7
+var scenery_timer := 0.0
+var scenery_interval := 0.9       # seconds between roadside props
+var _scenery_left := true         # alternate sides as we spawn
 
 # --- Screen shake ---------------------------------------------------------
 var shake_strength := 0.0
@@ -65,6 +82,7 @@ var _dash_material: StandardMaterial3D
 @onready var road_container: Node3D = $RoadContainer
 @onready var traffic_container: Node3D = $TrafficContainer
 @onready var coin_container: Node3D = $CoinContainer
+@onready var scenery_container: Node3D = $SceneryContainer
 @onready var hud := $HUD
 @onready var game_over := $GameOverLayer
 
@@ -72,6 +90,7 @@ var _dash_material: StandardMaterial3D
 func _ready() -> void:
 	_make_road_materials()
 	_build_road()
+	_prewarm_scenery()
 
 	# Aim the sun down and across so the boxes cast nice shadows.
 	sun.rotation_degrees = Vector3(-55, -35, 0)
@@ -121,6 +140,7 @@ func _process(delta: float) -> void:
 	# Traffic moves a little faster than the road so it feels like oncoming.
 	_scroll_traffic((speed + traffic_extra_speed) * delta)
 	_scroll_coins(move)
+	_scroll_scenery(move)
 
 	# --- Spawning ---------------------------------------------------------
 	traffic_timer -= delta
@@ -132,6 +152,11 @@ func _process(delta: float) -> void:
 	if coin_timer <= 0.0:
 		coin_timer = coin_interval
 		_spawn_coin_line()
+
+	scenery_timer -= delta
+	if scenery_timer <= 0.0:
+		scenery_timer = scenery_interval
+		_spawn_scenery_at(SPAWN_Z)
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
@@ -264,6 +289,45 @@ func _scroll_coins(amount: float) -> void:
 		coin.position.z += amount
 		if coin.position.z > DESPAWN_Z:
 			coin.queue_free()
+
+
+# ==========================================================================
+#  ROADSIDE SCENERY (buildings & trees)
+# ==========================================================================
+
+## Fill the road sides with scenery at startup so the world isn't empty.
+func _prewarm_scenery() -> void:
+	var z := SPAWN_Z
+	while z < DESPAWN_Z:
+		_spawn_scenery_at(z)
+		z += randf_range(5.0, 9.0)
+
+
+## Spawn one building or tree just off the road, on alternating sides.
+func _spawn_scenery_at(z: float) -> void:
+	_scenery_left = not _scenery_left
+	var side := -1.0 if _scenery_left else 1.0
+
+	var holder: Node3D
+	if randf() < 0.45:
+		# A clump of trees, sitting close to the road edge.
+		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
+		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", false)
+		holder.position = Vector3(side * randf_range(6.0, 9.0), 0.0, z)
+	else:
+		# A building, set back a little further.
+		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
+		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", false)
+		holder.position = Vector3(side * randf_range(8.0, 13.0), 0.0, z)
+
+	holder.rotate_y(randf_range(0.0, TAU))
+
+
+func _scroll_scenery(amount: float) -> void:
+	for prop in scenery_container.get_children():
+		prop.position.z += amount
+		if prop.position.z > DESPAWN_Z + 6.0:
+			prop.queue_free()
 
 
 # ==========================================================================

@@ -4,15 +4,24 @@ class_name TrafficVehicle
 ##
 ## There is deliberately NO AI here. Traffic does not steer, brake, overtake or
 ## change lanes. It simply sits in its lane while the world scrolls it toward
-## the player (the actual movement is handled centrally in Game.gd).
+## the player (movement is handled centrally in Game.gd).
 ##
-## The only job of this script is to assemble a simple low-poly model for one
-## of the four Philippine traffic types out of boxes and cylinder wheels, and
-## to size the collision box to match.
+## Most types use Kenney "Car Kit" vehicle models (MIT licensed), auto-fitted to
+## size. The tricycle has no off-the-shelf model, so it is still hand-built from
+## primitives - a motorbike with a covered passenger sidecar.
 
-# Shared colours.
-const GLASS := Color(0.55, 0.75, 0.9)   # windows
-const TYRE := Color(0.1, 0.1, 0.12)     # wheels
+# Kenney truck models, re-used (with different colours) for the larger vehicles.
+const TRUCK_RED := preload("res://models/vehicle-truck-red.glb")
+const TRUCK_YELLOW := preload("res://models/vehicle-truck-yellow.glb")
+const TRUCK_GREEN := preload("res://models/vehicle-truck-green.glb")
+
+# Traffic drives toward the player, so the models are turned to face +Z.
+# Flip this if a model ends up pointing the wrong way.
+const TRAFFIC_FACES_BACK := true
+
+# Colours for the hand-built tricycle.
+const GLASS := Color(0.55, 0.75, 0.9)
+const TYRE := Color(0.1, 0.1, 0.12)
 
 
 func _ready() -> void:
@@ -28,21 +37,18 @@ func setup(vehicle_type: String) -> void:
 
 	match vehicle_type:
 		"jeepney":
-			# Long, low and brightly painted - the icon of Philippine roads.
 			bounds = Vector3(1.7, 1.7, 3.8)
-			_build_boxy(bounds, Color(0.9, 0.3, 0.15))
+			_use_model(TRUCK_GREEN, bounds)
 		"bus":
-			# The big, tall, scary one.
 			bounds = Vector3(1.9, 2.2, 5.2)
-			_build_boxy(bounds, Color(0.2, 0.45, 0.85))
+			_use_model(TRUCK_RED, bounds)
 		"tricycle":
-			# A motorbike with a passenger sidecar.
 			bounds = Vector3(1.5, 1.4, 2.0)
 			_build_tricycle(bounds, Color(0.95, 0.8, 0.15))
 		_:
 			# Default = an ordinary car.
 			bounds = Vector3(1.5, 1.4, 2.6)
-			_build_car(bounds, Color(0.85, 0.85, 0.9))
+			_use_model(TRUCK_YELLOW, bounds)
 
 	# Collision box = the overall bounds, sitting on the road.
 	var shape := BoxShape3D.new()
@@ -51,31 +57,12 @@ func setup(vehicle_type: String) -> void:
 	$CollisionShape3D.position.y = bounds.y * 0.5
 
 
-# --- Model builders -------------------------------------------------------
-
-## A tall box vehicle with a window strip, roof and four wheels (jeepney/bus).
-func _build_boxy(bounds: Vector3, color: Color) -> void:
-	var w := bounds.x
-	var h := bounds.y
-	var l := bounds.z
-	_box(Vector3(w, h * 0.78, l), Vector3(0, h * 0.4, 0), color)                  # body
-	_box(Vector3(w * 1.02, h * 0.28, l * 0.9), Vector3(0, h * 0.66, 0), GLASS)    # windows
-	_box(Vector3(w, h * 0.14, l), Vector3(0, h * 0.86, 0), color)                 # roof
-	_corner_wheels(w, l, 0.36)
+## Drop in an imported model, auto-fitted to the given bounds.
+func _use_model(packed: PackedScene, bounds: Vector3) -> void:
+	ModelUtil.instance_fitted($Model, packed, bounds, "length", TRAFFIC_FACES_BACK)
 
 
-## A lower body with a shorter cabin on top (car).
-func _build_car(bounds: Vector3, color: Color) -> void:
-	var w := bounds.x
-	var h := bounds.y
-	var l := bounds.z
-	_box(Vector3(w, h * 0.5, l), Vector3(0, h * 0.32, 0), color)                  # lower body
-	_box(Vector3(w * 0.92, h * 0.42, l * 0.55), Vector3(0, h * 0.68, -0.05), color) # cabin
-	_box(Vector3(w * 0.94, h * 0.3, l * 0.5), Vector3(0, h * 0.7, -0.05), GLASS)  # windows
-	_corner_wheels(w, l, 0.34)
-
-
-## A narrow motorbike on the left with a covered passenger sidecar on the right.
+# --- Hand-built tricycle: a motorbike on the left, sidecar on the right ----
 func _build_tricycle(bounds: Vector3, color: Color) -> void:
 	var w := bounds.x
 	var h := bounds.y
@@ -93,17 +80,7 @@ func _build_tricycle(bounds: Vector3, color: Color) -> void:
 	_wheel(0.28, Vector3(w * 0.4, 0.28, l * 0.15), TYRE)
 
 
-# --- Small primitive helpers ----------------------------------------------
-
-## Four wheels, one at each corner of a (w long) footprint.
-func _corner_wheels(w: float, l: float, radius: float) -> void:
-	var x := w * 0.45
-	var z := l * 0.32
-	for side_x in [-x, x]:
-		for side_z in [-z, z]:
-			_wheel(radius, Vector3(side_x, radius, side_z), TYRE)
-
-
+# --- Small primitive helpers (used by the tricycle) -----------------------
 func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_instance := MeshInstance3D.new()
 	var mesh := BoxMesh.new()

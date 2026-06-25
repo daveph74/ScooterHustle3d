@@ -90,15 +90,18 @@ res://
   - `HUD` and `GameOverLayer` — instances of the UI overlays.
 
 - **`vehicles/Player.tscn`** — The scooter. An `Area3D` (so it can detect
-  overlaps) with a collision box and an empty `Model` node. The script builds a
-  low-poly scooter + rider (deck, body, seat, handlebars, headlight, two wheels,
-  rider torso + helmet) out of box and cylinder primitives. It sits on collision
+  overlaps) with a collision box and an empty `Model` node. On ready it drops in
+  the Kenney motorcycle model, auto-fitted to size. It sits on collision
   **layer 1** and watches **layers 2 & 3** (traffic & coins).
 
 - **`traffic/TrafficVehicle.tscn`** — One reusable obstacle. An `Area3D` with a
-  collision box and an empty `Model` node. The script assembles a simple
-  low-poly model (body, window strip, roof/cabin, wheels) sized & coloured for a
-  jeepney, bus, tricycle or car. Sits on **layer 2**.
+  collision box and an empty `Model` node. `setup(type)` fills it in: the
+  jeepney, bus and car use auto-fitted Kenney truck models (different size +
+  colour); the tricycle is still hand-built from primitives. Sits on **layer 2**.
+
+- **3D models (`res://models/`)** — Kenney "Racing" and "City Builder" starter
+  kits (MIT licensed — see `CREDITS.md`). Used for the player, most traffic, and
+  the roadside buildings/trees.
 
 - **`scenes/Coin.tscn`** — A spinning gold coin. An `Area3D` with a cylinder
   mesh (stood on its edge) and a sphere collision shape. Sits on **layer 3**.
@@ -137,12 +140,19 @@ res://
 
 - **`scripts/Game.gd`** — The main controller. It:
   - builds and endlessly scrolls a pool of road tiles (the "treadmill" trick);
-  - spawns, moves and recycles traffic and coins;
+  - spawns, moves and recycles traffic, coins, and roadside scenery
+    (buildings & trees down each side of the road);
   - ramps difficulty gently (traffic speeds up and spawns more often over time);
   - tracks score (distance + near-miss bonus) and coins;
   - detects **near misses**, does **screen shake** on crash, widens the camera
     **FOV** with speed, and tilts the camera into lane changes;
   - banks coins and shows the Game Over screen on a crash.
+
+- **`systems/ModelUtil.gd`** — A small helper that drops an imported `.glb`
+  model into the scene and **auto-fits** it: it measures the model's bounding
+  box and scales/centres it to a target size, so models work regardless of their
+  native units. If a vehicle ever faces the wrong way, flip the `FACES_BACK`
+  constant in `Player.gd` / `TrafficVehicle.gd`.
 
 - **`ui/MainMenu.gd`, `ui/Garage.gd`, `ui/HUD.gd`, `ui/GameOver.gd`** — Build
   their respective UIs in code and wire up the buttons / scene changes.
