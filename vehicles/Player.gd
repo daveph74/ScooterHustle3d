@@ -31,7 +31,7 @@ var alive := true
 # The scooter mesh (Kenney "Car Kit" motorcycle, MIT licensed). The model is
 # auto-scaled to fit, so we only ever tweak this facing flag if it points the
 # wrong way down the road.
-const SCOOTER_MODEL := preload("res://models/vehicle-motorcycle.glb")
+const SCOOTER_MODEL := preload("res://models/racing/vehicle-motorcycle.glb")
 const SCOOTER_FACES_BACK := false
 
 # --- Swipe detection ------------------------------------------------------

@@ -19,15 +19,15 @@ const COIN_SCENE := preload("res://scenes/Coin.tscn")
 # Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
 # trees are placed off to the sides and scroll past for a sense of a city.
 const BUILDING_MODELS := [
-	preload("res://models/building-small-a.glb"),
-	preload("res://models/building-small-b.glb"),
-	preload("res://models/building-small-c.glb"),
-	preload("res://models/building-small-d.glb"),
-	preload("res://models/building-garage.glb"),
+	preload("res://models/city/building-small-a.glb"),
+	preload("res://models/city/building-small-b.glb"),
+	preload("res://models/city/building-small-c.glb"),
+	preload("res://models/city/building-small-d.glb"),
+	preload("res://models/city/building-garage.glb"),
 ]
 const TREE_MODELS := [
-	preload("res://models/grass-trees.glb"),
-	preload("res://models/grass-trees-tall.glb"),
+	preload("res://models/city/grass-trees.glb"),
+	preload("res://models/city/grass-trees-tall.glb"),
 ]
 
 # --- Lane layout (must match Player.gd) -----------------------------------

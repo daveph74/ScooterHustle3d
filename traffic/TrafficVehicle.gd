@@ -11,9 +11,9 @@ class_name TrafficVehicle
 ## primitives - a motorbike with a covered passenger sidecar.
 
 # Kenney truck models, re-used (with different colours) for the larger vehicles.
-const TRUCK_RED := preload("res://models/vehicle-truck-red.glb")
-const TRUCK_YELLOW := preload("res://models/vehicle-truck-yellow.glb")
-const TRUCK_GREEN := preload("res://models/vehicle-truck-green.glb")
+const TRUCK_RED := preload("res://models/racing/vehicle-truck-red.glb")
+const TRUCK_YELLOW := preload("res://models/racing/vehicle-truck-yellow.glb")
+const TRUCK_GREEN := preload("res://models/racing/vehicle-truck-green.glb")
 
 # Traffic drives toward the player, so the models are turned to face +Z.
 # Flip this if a model ends up pointing the wrong way.
