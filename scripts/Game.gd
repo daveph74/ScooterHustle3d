@@ -35,11 +35,21 @@ const LANE_WIDTH := 2.5
 const LANES_X := [-2.5, 0.0, 2.5]   # world X of the three lane centres
 
 # --- Road geometry --------------------------------------------------------
-const SEGMENT_LENGTH := 20.0   # length (in metres) of one road tile
-const SEGMENT_COUNT := 12      # how many tiles we keep in the world at once
+# Short overlapping tiles so hills/bends look smooth rather than blocky.
+const SEGMENT_LENGTH := 4.0    # length (in metres) of one road tile
+const SEGMENT_COUNT := 44      # how many tiles we keep in the world at once
 const ROAD_WIDTH := 9.0
-const SPAWN_Z := -160.0        # objects appear this far AHEAD of the player
+const GROUND_WIDTH := 150.0    # wide grass baked into each tile so it rolls too
+const SPAWN_Z := -150.0        # objects appear this far AHEAD of the player
 const DESPAWN_Z := 14.0        # objects past this (behind player) are removed
+
+# --- Curvy world: fake hills (vertical) and bends (sideways) --------------
+# The LOGICAL track stays straight and flat, so lanes and collisions are
+# unaffected. We only DISPLACE the visuals based on how far ahead something is,
+# blending to zero at the player so everything lines up where it matters.
+# Flip these signs if a hill or bend ever goes the "wrong" way.
+const HILL_DIR := 1.0
+const BEND_DIR := 1.0
 
 # --- Speed & difficulty ---------------------------------------------------
 var base_speed := 16.0         # starting scroll speed (set from the scooter)
@@ -73,6 +83,7 @@ var _segments: Array[Node3D] = []
 # Materials shared by all road pieces (made once to save memory).
 var _road_material: StandardMaterial3D
 var _dash_material: StandardMaterial3D
+var _ground_material: StandardMaterial3D
 
 # Node references (filled in _ready). @onready waits until children exist.
 @onready var player: Player = $Player
@@ -178,6 +189,10 @@ func _make_road_materials() -> void:
 	_dash_material.emission_enabled = true
 	_dash_material.emission = Color(0.15, 0.15, 0.15)
 
+	_ground_material = StandardMaterial3D.new()
+	_ground_material.albedo_color = Color(0.32, 0.42, 0.26)  # grass
+	_ground_material.roughness = 1.0
+
 
 ## Create the pool of road tiles once at startup.
 func _build_road() -> void:
@@ -189,34 +204,45 @@ func _build_road() -> void:
 		_segments.append(segment)
 
 
-## Build one road tile: a flat asphalt plane plus dashed lane markings.
+## Build one road tile: grass + asphalt + a dash on each lane divider.
+## Tiles are made slightly longer than their spacing so they overlap, which
+## hides any little seams once they are tilted along hills.
 func _make_road_segment() -> Node3D:
 	var segment := Node3D.new()
+	var overlap := SEGMENT_LENGTH + 0.6
 
+	# Wide grass, baked into the tile so the ground rolls with the hills.
+	var ground := MeshInstance3D.new()
+	var ground_plane := PlaneMesh.new()
+	ground_plane.size = Vector2(GROUND_WIDTH, overlap)
+	ground.mesh = ground_plane
+	ground.material_override = _ground_material
+	ground.position.y = -0.04
+	segment.add_child(ground)
+
+	# Asphalt road on top.
 	var road := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(ROAD_WIDTH, SEGMENT_LENGTH)
+	plane.size = Vector2(ROAD_WIDTH, overlap)
 	road.mesh = plane
 	road.material_override = _road_material
 	segment.add_child(road)
 
-	# Two dashed dividers, one between each pair of lanes.
-	const DASHES_PER_SEGMENT := 4
+	# One dash on each lane divider (length = half the tile = dash + gap).
 	for divider_x in [-LANE_WIDTH * 0.5, LANE_WIDTH * 0.5]:
-		for d in range(DASHES_PER_SEGMENT):
-			var dash := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = Vector3(0.18, 0.02, 2.0)
-			dash.mesh = box
-			dash.material_override = _dash_material
-			var z_offset := -SEGMENT_LENGTH * 0.5 + (d + 0.5) * (SEGMENT_LENGTH / DASHES_PER_SEGMENT)
-			dash.position = Vector3(divider_x, 0.02, z_offset)
-			segment.add_child(dash)
+		var dash := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.18, 0.02, SEGMENT_LENGTH * 0.5)
+		dash.mesh = box
+		dash.material_override = _dash_material
+		dash.position = Vector3(divider_x, 0.02, 0.0)
+		segment.add_child(dash)
 
 	return segment
 
 
-## Slide every road tile toward the player; recycle any that fall behind.
+## Slide every road tile toward the player; recycle any that fall behind, and
+## displace each tile along the hill/bend path.
 func _scroll_road(amount: float) -> void:
 	var total_length := SEGMENT_COUNT * SEGMENT_LENGTH
 	for segment in _segments:
@@ -224,6 +250,35 @@ func _scroll_road(amount: float) -> void:
 		if segment.position.z > DESPAWN_Z + SEGMENT_LENGTH:
 			# Jump it back to the far end to make the road feel endless.
 			segment.position.z -= total_length
+		var off := _path_offset(segment.position.z)
+		segment.position.x = off.x
+		segment.position.y = off.y
+
+
+# ==========================================================================
+#  CURVY WORLD (fake hills & bends)
+# ==========================================================================
+
+# Sideways displacement of the track at world position w (gentle, long bends).
+func _path_x(w: float) -> float:
+	return (sin(w * 0.0065) * 7.0 + sin(w * 0.017) * 2.5) * BEND_DIR
+
+# Vertical displacement of the track at world position w (small rolling hills).
+func _path_y(w: float) -> float:
+	return (sin(w * 0.020) * 1.4 + cos(w * 0.045) * 0.7) * HILL_DIR
+
+## How far to displace an object that is currently at local z (z < 0 = ahead).
+## We subtract the value at the player so the offset is zero right at z = 0.
+func _path_offset(z: float) -> Vector2:
+	var w := distance - z
+	return Vector2(_path_x(w) - _path_x(distance), _path_y(w) - _path_y(distance))
+
+## Apply the hill/bend displacement to a scrolling object, on top of the base
+## X/Y it was spawned with (stored in "bx"/"by").
+func _apply_path(node: Node3D) -> void:
+	var off := _path_offset(node.position.z)
+	node.position.x = node.get_meta("bx", 0.0) + off.x
+	node.position.y = node.get_meta("by", 0.0) + off.y
 
 
 # ==========================================================================
@@ -244,6 +299,8 @@ func _spawn_traffic_at(z: float) -> void:
 	traffic_container.add_child(vehicle)
 	vehicle.setup(types[randi() % types.size()])
 	vehicle.position = Vector3(LANES_X[lane], 0.0, z)
+	vehicle.set_meta("bx", LANES_X[lane])
+	vehicle.set_meta("by", 0.0)
 	vehicle.drive_speed = randf_range(0.35, 0.7) * base_speed
 
 	# Later in the run, sometimes add a second vehicle in a DIFFERENT lane.
@@ -254,6 +311,8 @@ func _spawn_traffic_at(z: float) -> void:
 		traffic_container.add_child(vehicle2)
 		vehicle2.setup(types[randi() % types.size()])
 		vehicle2.position = Vector3(LANES_X[lane2], 0.0, z - randf_range(4.0, 12.0))
+		vehicle2.set_meta("bx", LANES_X[lane2])
+		vehicle2.set_meta("by", 0.0)
 		vehicle2.drive_speed = randf_range(0.35, 0.7) * base_speed
 
 
@@ -272,6 +331,7 @@ func _scroll_traffic(delta: float) -> void:
 		# driving forward at its own speed, so it closes on the player at the
 		# difference. Since the player is faster, we always overtake it.
 		vehicle.position.z += (speed - vehicle.drive_speed) * delta
+		_apply_path(vehicle)
 		_check_near_miss(vehicle)
 		if vehicle.position.z > DESPAWN_Z:
 			vehicle.queue_free()
@@ -302,11 +362,14 @@ func _spawn_coin_line() -> void:
 		var coin := COIN_SCENE.instantiate()
 		coin_container.add_child(coin)
 		coin.position = Vector3(LANES_X[lane], 0.7, SPAWN_Z - i * 2.2)
+		coin.set_meta("bx", LANES_X[lane])
+		coin.set_meta("by", 0.7)
 
 
 func _scroll_coins(amount: float) -> void:
 	for coin in coin_container.get_children():
 		coin.position.z += amount
+		_apply_path(coin)
 		if coin.position.z > DESPAWN_Z:
 			coin.queue_free()
 
@@ -348,11 +411,14 @@ func _spawn_scenery_at(z: float) -> void:
 	var road_edge := ROAD_WIDTH * 0.5
 	var radius := ModelUtil.footprint_radius(holder)
 	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, z)
+	holder.set_meta("bx", holder.position.x)
+	holder.set_meta("by", 0.0)
 
 
 func _scroll_scenery(amount: float) -> void:
 	for prop in scenery_container.get_children():
 		prop.position.z += amount
+		_apply_path(prop)
 		if prop.position.z > DESPAWN_Z + 6.0:
 			prop.queue_free()
 
@@ -362,13 +428,25 @@ func _scroll_scenery(amount: float) -> void:
 # ==========================================================================
 
 func _update_camera(delta: float) -> void:
-	# Follow the player's lane a little (not all the way) for a subtle drift.
-	var target_x := player.position.x * 0.55
 	var follow: float = clamp(6.0 * delta, 0.0, 1.0)
+
+	# Where does the road go a little way ahead? Aim the camera there so bends
+	# and hills feel like we are driving into them.
+	var look := 22.0
+	var ahead := _path_offset(-look)
+
+	# Follow the player's lane a little, and drift toward the bend.
+	var target_x := player.position.x * 0.55 + ahead.x * 0.25
 	camera.position.x = lerp(camera.position.x, target_x, follow)
 
-	# Tilt the camera slightly into lane changes.
-	var target_roll := -player.position.x * 0.02
+	# Yaw toward the bend, pitch with the hill (on top of the base downward tilt).
+	var target_yaw := atan2(-ahead.x, look) * 0.6
+	camera.rotation.y = lerp(camera.rotation.y, target_yaw, follow)
+	var target_pitch := deg_to_rad(-16.0) + atan2(ahead.y, look) * 0.5
+	camera.rotation.x = lerp(camera.rotation.x, target_pitch, follow)
+
+	# Bank into lane changes and bends.
+	var target_roll := -player.position.x * 0.02 - ahead.x * 0.01
 	camera.rotation.z = lerp(camera.rotation.z, target_roll, follow)
 
 	# Widen the field of view as we speed up = sense of speed.

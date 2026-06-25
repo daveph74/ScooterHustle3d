@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Game.gd" id="1"]
 [ext_resource type="PackedScene" path="res://vehicles/Player.tscn" id="2"]
@@ -22,13 +22,6 @@ ambient_light_energy = 1.0
 tonemap_mode = 2
 fog_enabled = false
 
-[sub_resource type="StandardMaterial3D" id="ground_mat"]
-albedo_color = Color(0.32, 0.42, 0.26, 1)
-roughness = 1.0
-
-[sub_resource type="PlaneMesh" id="ground_mesh"]
-size = Vector2(140, 600)
-
 [node name="Game" type="Node3D"]
 script = ExtResource("1")
 
@@ -39,11 +32,6 @@ shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
-
-[node name="Ground" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, -180)
-mesh = SubResource("ground_mesh")
-material_override = SubResource("ground_mat")
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.2, 7)
