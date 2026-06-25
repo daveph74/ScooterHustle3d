@@ -412,8 +412,10 @@ func _check_near_miss(vehicle: Node3D) -> void:
 	if vehicle.position.z >= player.position.z:
 		vehicle.set_meta("passed", true)
 		var dx := absf(vehicle.position.x - player.position.x)
-		# > 1.2 means it did NOT hit us; < 3.2 means it was close (next lane).
-		if dx > 1.2 and dx < 3.2:
+		# Only a genuine dodge counts: the vehicle is in the adjacent lane
+		# (> 1.2 = not a hit, < 3.2 = next lane, not two away) AND the player
+		# actually swerved lanes just now. Cruising past traffic no longer fires.
+		if dx > 1.2 and dx < 3.2 and player.recently_changed_lane():
 			_on_near_miss()
 
 

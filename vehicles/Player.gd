@@ -34,6 +34,9 @@ var current_lane := MIDDLE_LANE
 var lane_change_speed := 9.0
 # Once we crash we stop responding to input.
 var alive := true
+# Seconds since the last actual lane change (used to detect a genuine "dodge"
+# for near misses, so passively cruising past traffic doesn't count).
+var _since_lane_change := 999.0
 
 # --- Visual model ---------------------------------------------------------
 # The scooter mesh (Kenney "Car Kit" motorcycle, MIT licensed). The model is
@@ -76,6 +79,8 @@ func _process(delta: float) -> void:
 	if not alive:
 		return
 
+	_since_lane_change += delta
+
 	# Keyboard testing controls.
 	if Input.is_action_just_pressed("move_left"):
 		change_lane(-1)
@@ -96,7 +101,14 @@ func _process(delta: float) -> void:
 ## Move one lane left (dir = -1) or right (dir = +1), clamped to the road.
 func change_lane(dir: int) -> void:
 	var next_lane: int = clamp(current_lane + dir, 0, LANE_COUNT - 1)
-	current_lane = next_lane
+	if next_lane != current_lane:
+		current_lane = next_lane
+		_since_lane_change = 0.0   # reset the dodge timer on a real lane change
+
+
+## True if the player swerved lanes within the given window (a real "dodge").
+func recently_changed_lane(window: float = 1.0) -> bool:
+	return _since_lane_change <= window
 
 
 # --- Touch / swipe input --------------------------------------------------

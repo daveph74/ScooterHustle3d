@@ -205,9 +205,11 @@ This is the most important gameplay-correctness system.
 - Counting happens via the Player's `coin_collected` signal (not the coin), so there's no double counting.
 
 ### 6.4 Near miss (`Game._check_near_miss`)
-When a vehicle crosses the player's z without colliding and the lateral distance
-is `1.2 < dx < 3.2` (i.e. it was in the adjacent lane), award **+25 score**,
-small camera shake, HUD "NEAR MISS!" flash, and the near_miss SFX.
+Counts only a genuine **dodge**: a vehicle crosses the player's z in the
+adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
+~1s (`Player.recently_changed_lane()`). Passively cruising past traffic does
+**not** count. Reward: **+25 score** (× combo), small camera shake, HUD
+"NEAR MISS!" flash, and the near_miss SFX.
 
 ### 6.5 Difficulty ramp (`Game._process`)
 - `speed = min(base_speed + elapsed*0.35, MAX_SPEED=42)`, where `base_speed = 14 + scooter.speed*4`.
@@ -248,6 +250,13 @@ they ride the hills/bends.
 - Saves to `user://scooterhustle_save.json`: `total_coins`, `unlocked_ids`, `selected_id`, `music_on`, `sfx_on`, `music_track`.
 - Scooter catalogue is `preload`ed from the four `.tres` files. Add a scooter by adding a `.tres` and one line in `_load_scooter_defs()`.
 - Rusty Scooter is always owned (enforced on load).
+
+### 6.11 Pause (`ui/HUD.gd`)
+A top-right pause button (large tap target) and a full-screen pause overlay
+(Resume / Restart / Main Menu) using `get_tree().paused`. The HUD runs with
+`PROCESS_MODE_ALWAYS` so the menu stays responsive while all gameplay nodes
+freeze. Escape toggles pause on desktop; `hud.hide_pause_button()` is called on
+Game Over so a finished run can't be paused.
 
 ---
 
@@ -317,7 +326,7 @@ Per-scooter feel: the `.tres` files (`speed`, `handling`). Swipe sensitivity:
 ## 12. Suggested Next Steps
 
 Short term / polish:
-- Add a **pause button** and an in-game music/SFX toggle.
+- An in-game music/SFX toggle (a **pause menu** with Resume/Restart/Main Menu is done).
 - **Particles**: coin sparkle on pickup, debris/dust on crash (hooks already exist via the signals).
 - **High score / best distance** on the menu and game-over screen.
 - A proper **Settings screen** (currently options are inline on the main menu).
