@@ -49,8 +49,10 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 
 
 func _ready() -> void:
-	# Drop in the scooter model, auto-fitted to the player's size.
-	ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_FACES_BACK)
+	# Drop in the scooter model, auto-fitted to the player's size, then apply the
+	# equipped cosmetics (paint / helmet / wheels) - purely visual.
+	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_FACES_BACK)
+	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Read the selected scooter's handling so better bikes feel snappier.
 	var scooter := GameData.get_selected_scooter()

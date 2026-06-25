@@ -12,6 +12,10 @@ extends Control
 
 var _coins_label: Label
 var _list: VBoxContainer
+var _current_tab := "scooters"
+var _cosmetics := Cosmetics.new()
+const COSMETIC_SLOTS := ["paint", "helmet", "wheel"]
+const SLOT_TITLES := {"paint": "PAINT", "helmet": "HELMETS", "wheel": "WHEELS"}
 
 
 func _ready() -> void:
@@ -42,6 +46,15 @@ func _ready() -> void:
 	_coins_label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 	outer.add_child(_coins_label)
 
+	# Tab row: Scooters | Cosmetics.
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 12)
+	outer.add_child(tabs)
+	var scooters_tab := _make_tab("SCOOTERS", "scooters")
+	var cosmetics_tab := _make_tab("COSMETICS", "cosmetics")
+	tabs.add_child(scooters_tab)
+	tabs.add_child(cosmetics_tab)
+
 	# Scrollable area so all four cards fit on any phone.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -64,7 +77,23 @@ func _ready() -> void:
 	_refresh()
 
 
-## Rebuild the whole scooter list from current game data.
+func _make_tab(text: String, tab_id: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(0, 56)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 26)
+	button.pressed.connect(func(): _show_tab(tab_id))
+	return button
+
+
+func _show_tab(tab_id: String) -> void:
+	_current_tab = tab_id
+	AudioManager.play_sfx("click")
+	_refresh()
+
+
+## Rebuild the current tab's list from current game data.
 func _refresh() -> void:
 	_coins_label.text = "Coins: %d" % GameData.total_coins
 
@@ -72,8 +101,67 @@ func _refresh() -> void:
 	for child in _list.get_children():
 		child.queue_free()
 
-	for scooter in GameData.all_scooters:
-		_list.add_child(_make_card(scooter))
+	if _current_tab == "scooters":
+		for scooter in GameData.all_scooters:
+			_list.add_child(_make_card(scooter))
+	else:
+		for slot in COSMETIC_SLOTS:
+			_list.add_child(_make_section_header(SLOT_TITLES[slot]))
+			for entry in _cosmetics.list_for_slot(slot):
+				_list.add_child(_make_cosmetic_card(entry))
+
+
+func _make_section_header(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color(0.7, 0.8, 1.0))
+	return label
+
+
+## Build one cosmetic "card" (paint / helmet / wheel option).
+func _make_cosmetic_card(entry: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 14)
+	margin.add_child(row)
+	panel.add_child(margin)
+
+	# A colour swatch preview (or a neutral box for "keep stock"/"none").
+	var swatch := ColorRect.new()
+	swatch.custom_minimum_size = Vector2(48, 48)
+	swatch.color = entry.color if entry.color != null else Color(0.4, 0.4, 0.45)
+	row.add_child(swatch)
+
+	var name_label := Label.new()
+	name_label.text = entry.name
+	name_label.add_theme_font_size_override("font_size", 28)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+
+	# Action button: EQUIPPED / EQUIP / BUY (price).
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(170, 60)
+	button.add_theme_font_size_override("font_size", 24)
+	var equipped: bool = GameData.get_equipped(entry.slot) == entry.id
+	if equipped:
+		button.text = "EQUIPPED"
+		button.disabled = true
+	elif GameData.is_cosmetic_owned(entry.id):
+		button.text = "EQUIP"
+		button.pressed.connect(func(): _on_equip_cosmetic(entry.slot, entry.id))
+	else:
+		button.text = "BUY (%d)" % entry.price
+		button.disabled = GameData.total_coins < entry.price
+		button.pressed.connect(func(): _on_buy_cosmetic(entry.slot, entry.id, entry.price))
+	row.add_child(button)
+
+	return panel
 
 
 ## Build one scooter "card".
@@ -149,6 +237,21 @@ func _on_buy(id: String) -> void:
 	if GameData.try_buy(id):
 		AudioManager.play_sfx("coin")   # cha-ching on a successful purchase
 		GameData.select(id)   # auto-ride the scooter you just bought
+	else:
+		AudioManager.play_sfx("click")
+	_refresh()
+
+
+func _on_equip_cosmetic(slot: String, id: String) -> void:
+	AudioManager.play_sfx("click")
+	GameData.equip_cosmetic(slot, id)
+	_refresh()
+
+
+func _on_buy_cosmetic(slot: String, id: String, price: int) -> void:
+	if GameData.try_buy_cosmetic(id, price):
+		AudioManager.play_sfx("coin")
+		GameData.equip_cosmetic(slot, id)   # auto-equip what you just bought
 	else:
 		AudioManager.play_sfx("click")
 	_refresh()
