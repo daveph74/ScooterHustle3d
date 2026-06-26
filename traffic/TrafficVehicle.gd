@@ -16,8 +16,8 @@ const TRUCK_YELLOW := preload("res://models/racing/vehicle-truck-yellow.glb")
 const TRUCK_GREEN := preload("res://models/racing/vehicle-truck-green.glb")
 
 # Traffic drives toward the player, so the models are turned to face +Z.
-# Flip this if a model ends up pointing the wrong way.
-const TRAFFIC_FACES_BACK := true
+# Adjust in 90° steps if a model ends up pointing the wrong way.
+const TRAFFIC_YAW := 180.0
 
 # Colours for the hand-built tricycle.
 const GLASS := Color(0.55, 0.75, 0.9)
@@ -64,7 +64,7 @@ func setup(vehicle_type: String) -> void:
 
 ## Drop in an imported model, auto-fitted to the given bounds.
 func _use_model(packed: PackedScene, bounds: Vector3) -> void:
-	ModelUtil.instance_fitted($Model, packed, bounds, "length", TRAFFIC_FACES_BACK)
+	ModelUtil.instance_fitted($Model, packed, bounds, "length", TRAFFIC_YAW)
 
 
 # --- Hand-built tricycle: a motorbike on the left, sidecar on the right ----

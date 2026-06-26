@@ -14,7 +14,8 @@ class_name ModelUtil
 ## fit_axis:
 ##   "length" - scale so the longest horizontal side matches target.z (vehicles)
 ##   "height" - scale so the height matches target.y (buildings, trees)
-static func instance_fitted(parent: Node3D, packed: PackedScene, target: Vector3, fit_axis: String, face_back: bool) -> Node3D:
+## yaw_degrees: rotate the model about Y so it faces down the road (0/90/180/270).
+static func instance_fitted(parent: Node3D, packed: PackedScene, target: Vector3, fit_axis: String, yaw_degrees: float = 0.0) -> Node3D:
 	var holder := Node3D.new()
 	parent.add_child(holder)
 
@@ -24,9 +25,9 @@ static func instance_fitted(parent: Node3D, packed: PackedScene, target: Vector3
 	var model := packed.instantiate()
 	pivot.add_child(model)
 
-	# Turn the model around if it faces the wrong way.
-	if face_back:
-		model.rotate_y(PI)
+	# Rotate the model so it faces down the road (measured AABB accounts for it).
+	if yaw_degrees != 0.0:
+		model.rotate_y(deg_to_rad(yaw_degrees))
 
 	# Measure the model (in pivot space) and fit it.
 	var aabb := _local_aabb(pivot, model)

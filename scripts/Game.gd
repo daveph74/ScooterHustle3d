@@ -497,12 +497,12 @@ func _spawn_scenery_at(z: float) -> void:
 	if randf() < 0.45:
 		# A clump of trees, sitting close to the road edge.
 		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
-		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", false)
+		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
 		gap = randf_range(1.0, 3.0)
 	else:
 		# A building, set back a little further.
 		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
-		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", false)
+		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", 0.0)
 		gap = randf_range(2.5, 6.0)
 
 	holder.rotate_y(randf_range(0.0, TAU))

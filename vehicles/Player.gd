@@ -43,7 +43,8 @@ var _since_lane_change := 999.0
 # / 1K textures). ModelUtil auto-scales it to fit, so we only ever tweak this
 # facing flag if it points the wrong way down the road.
 const SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
-const SCOOTER_FACES_BACK := true
+# Rotate the model so it faces down the road. Tune in 90° steps if needed.
+const SCOOTER_YAW := 270.0
 
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
@@ -54,7 +55,7 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 func _ready() -> void:
 	# Drop in the scooter model, auto-fitted to the player's size, then apply the
 	# equipped cosmetics (paint / helmet / wheels) - purely visual.
-	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_FACES_BACK)
+	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Read the selected scooter's handling so better bikes feel snappier.
