@@ -30,6 +30,7 @@ const BUILDING_MODELS := [
 const TREE_MODELS := [
 	preload("res://models/city/grass-trees.glb"),
 	preload("res://models/city/grass-trees-tall.glb"),
+	preload("res://models/custom/palm-tree.glb"),
 ]
 # Recognisable landmarks (custom Meshy models). Unlike generic buildings these
 # are oriented to FACE THE ROAD so you always see the storefront.
@@ -40,6 +41,7 @@ const LANDMARK_MODELS := [
 	preload("res://models/custom/petron.glb"),
 	preload("res://models/custom/sari-sari.glb"),
 	preload("res://models/custom/711.glb"),
+	preload("res://models/custom/chowking.glb"),
 ]
 # Base yaw so a landmark's front faces the road on the LEFT side; the right side
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.
