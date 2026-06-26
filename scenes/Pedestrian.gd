@@ -2,9 +2,8 @@ extends Area3D
 class_name Pedestrian
 ## A person crossing the road that the player must avoid.
 ##
-## Built ENTIRELY in code (a capsule body + sphere head) so it needs no art
-## file - exactly like the power-ups. It can be swapped for a Meshy
-## `pedestrian.glb` later through the same ModelUtil path if you want.
+## Uses the custom Meshy `man.glb`, auto-fitted by ModelUtil (swap the model
+## below for a different figure any time).
 ##
 ## It lives in the "traffic" group on collision layer 2, so the Player's
 ## existing `_on_area_entered` already treats touching one as a crash (and a
@@ -13,6 +12,13 @@ class_name Pedestrian
 ## Movement toward the player (the treadmill scroll) is handled centrally in
 ## Game.gd's _scroll_traffic, just like vehicles. This script only adds the
 ## gentle sideways WALK and a little bob, so it feels alive.
+
+# The walking person. ModelUtil scales it to roughly human height and grounds it.
+const PEDESTRIAN_MODEL := preload("res://models/custom/man.glb")
+# Rotate the model so it faces across the road. Tune in 90 steps if it ends up
+# facing the wrong way.
+const PEDESTRIAN_YAW := 0.0
+const PEDESTRIAN_HEIGHT := 1.7
 
 ## Sideways walk speed in world units/second (set by Game at spawn; sign chooses
 ## the direction). Kept small on purpose so the guaranteed safe lane stays open
@@ -56,36 +62,13 @@ func _ready() -> void:
 	_origin_x = get_meta("bx", position.x)
 
 
-## Build a tiny procedural person: a coloured capsule body and a skin-tone head.
+## Drop in the man model, auto-fitted to human height under a holder we can bob.
 func _build_figure() -> void:
 	_figure = Node3D.new()
 	add_child(_figure)
-
-	# Body - a random bright shirt colour so a crowd looks varied.
-	var shirt := StandardMaterial3D.new()
-	shirt.albedo_color = Color.from_hsv(randf(), 0.55, 0.9)
-	shirt.roughness = 1.0
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.22
-	capsule.height = 1.1
-	body.mesh = capsule
-	body.material_override = shirt
-	body.position.y = 0.85
-	_figure.add_child(body)
-
-	# Head - a small skin-tone sphere.
-	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.82, 0.62, 0.45)
-	skin.roughness = 1.0
-	var head := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.16
-	sphere.height = 0.32
-	head.mesh = sphere
-	head.material_override = skin
-	head.position.y = 1.55
-	_figure.add_child(head)
+	ModelUtil.instance_fitted(
+		_figure, PEDESTRIAN_MODEL,
+		Vector3(0.5, PEDESTRIAN_HEIGHT, 0.5), "height", PEDESTRIAN_YAW)
 
 
 func _process(delta: float) -> void:

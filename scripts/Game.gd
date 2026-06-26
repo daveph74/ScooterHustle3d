@@ -40,6 +40,7 @@ const LANDMARK_MODELS := [
 	preload("res://models/custom/sari-sari.glb"),
 	preload("res://models/custom/711.glb"),
 	preload("res://models/custom/chowking.glb"),
+	preload("res://models/custom/lto.glb"),
 ]
 # Base yaw so a landmark's front faces the road on the LEFT side; the right side
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.

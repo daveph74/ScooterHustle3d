@@ -336,12 +336,12 @@ Occasionally people cross the road on a zebra crossing and the player must dodge
 them. Built to **reuse the existing hazard pipeline** and **respect the safe-lane
 guarantee**.
 
-- `Pedestrian` is an **`Area3D`** built entirely in code (capsule body + sphere
-  head, like the power-ups), in group **`"traffic"`** on **collision layer 2** —
-  so the Player's existing `_on_area_entered` treats hitting one as a crash (a
-  shield absorbs it) with **zero new collision code**. `drive_speed = 0`, so it
-  rides `_scroll_traffic` and approaches at the full scroll speed like a parked
-  obstacle.
+- `Pedestrian` is an **`Area3D`** using the custom Meshy `man.glb`
+  (`PEDESTRIAN_MODEL`, auto-fitted by `ModelUtil`; tune `PEDESTRIAN_YAW`/
+  `PEDESTRIAN_HEIGHT`), in group **`"traffic"`** on **collision layer 2** — so the
+  Player's existing `_on_area_entered` treats hitting one as a crash (a shield
+  absorbs it) with **zero new collision code**. `drive_speed = 0`, so it rides
+  `_scroll_traffic` and approaches at the full scroll speed like a parked obstacle.
 - `_spawn_crossing()` (timer-driven): reads `config_at(distance - SPAWN_Z)`,
   **skips if it's a transition**, paints a **zebra crossing** (`_spawn_zebra` —
   white stripes in `CrossingContainer`, scrolled by `_scroll_crossings`), and
