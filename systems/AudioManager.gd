@@ -5,13 +5,18 @@ extends Node
 ## effects. Reachable anywhere as "AudioManager". Settings (music on/off, sfx
 ## on/off, chosen track) live in GameData so they are saved with everything else.
 
-# The three music loops and their menu-friendly names.
-const MUSIC := [
-	preload("res://audio/music/track1_cruise.wav"),
-	preload("res://audio/music/track2_rush.wav"),
-	preload("res://audio/music/track3_chill.wav"),
+# Music tracks: file path + menu-friendly name. Loaded at RUNTIME (not preloaded)
+# so the game still runs if a file hasn't been added yet, and so MP3 / OGG / WAV
+# looping is each handled correctly. To add or swap a track, just edit this list
+# and drop the matching file into audio/music/.
+const MUSIC_TRACKS := [
+	{"path": "res://audio/music/track1.mp3", "name": "Track 1"},
+	{"path": "res://audio/music/track2.mp3", "name": "Track 2"},
 ]
-const MUSIC_NAMES := ["Cruise", "Rush", "Chill"]
+
+# Filled in _ready from whichever MUSIC_TRACKS files actually exist.
+var _music: Array[AudioStream] = []
+var _music_names: Array[String] = []
 
 # Sound effects, looked up by name.
 const SFX := {
@@ -29,11 +34,14 @@ var _sfx_index := 0
 
 
 func _ready() -> void:
-	# Make every music loop actually loop.
-	for stream in MUSIC:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		stream.loop_end = int(stream.get_length() * stream.mix_rate)
+	# Load whichever track files are present and make each one loop seamlessly.
+	for t in MUSIC_TRACKS:
+		if not ResourceLoader.exists(t.path):
+			continue
+		var stream: AudioStream = load(t.path)
+		_enable_loop(stream)
+		_music.append(stream)
+		_music_names.append(t.name)
 
 	_music_player = AudioStreamPlayer.new()
 	_music_player.volume_db = -6.0
@@ -52,10 +60,23 @@ func _ready() -> void:
 
 # --- Music ----------------------------------------------------------------
 
+## Make a stream loop, whatever its format (MP3 / OGG / WAV).
+func _enable_loop(stream: AudioStream) -> void:
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
+	elif stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = int(wav.get_length() * wav.mix_rate)
+
+
 func _apply_music() -> void:
-	if GameData.music_on:
-		var index: int = clampi(GameData.music_track, 0, MUSIC.size() - 1)
-		_music_player.stream = MUSIC[index]
+	if GameData.music_on and not _music.is_empty():
+		var index: int = clampi(GameData.music_track, 0, _music.size() - 1)
+		_music_player.stream = _music[index]
 		_music_player.play()
 	else:
 		_music_player.stop()
@@ -73,14 +94,18 @@ func toggle_music() -> void:
 
 ## Switch to the next music track (wraps around).
 func next_track() -> void:
-	GameData.music_track = (GameData.music_track + 1) % MUSIC.size()
+	if _music.is_empty():
+		return
+	GameData.music_track = (GameData.music_track + 1) % _music.size()
 	GameData.save_game()
 	if GameData.music_on:
 		_apply_music()   # restart playing with the new track
 
 
 func current_track_name() -> String:
-	return MUSIC_NAMES[clampi(GameData.music_track, 0, MUSIC_NAMES.size() - 1)]
+	if _music_names.is_empty():
+		return "—"
+	return _music_names[clampi(GameData.music_track, 0, _music_names.size() - 1)]
 
 
 # --- Sound effects --------------------------------------------------------
