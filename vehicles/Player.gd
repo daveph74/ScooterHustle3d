@@ -57,7 +57,8 @@ const SCOOTER_YAW := 270.0
 const RIDER_MODEL_PATH := "res://models/custom/rider.glb"
 const RIDER_YAW := 270.0
 const RIDER_HEIGHT := 1.2
-const RIDER_OFFSET := Vector3(0.0, 0.45, 0.1)
+# +z moves him back toward the seat (away from the handlebars); y lifts him.
+const RIDER_OFFSET := Vector3(0.0, 0.32, 0.45)
 
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
