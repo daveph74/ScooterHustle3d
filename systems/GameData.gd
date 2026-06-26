@@ -45,6 +45,9 @@ var equipped_cosmetics: Dictionary = {
 
 
 func _ready() -> void:
+	# Force portrait at runtime on the device, belt-and-suspenders on top of the
+	# project setting (covers a stale/landscape Android manifest from an old APK).
+	DisplayServer.screen_set_orientation(DisplayServer.SCREEN_PORTRAIT)
 	_load_scooter_defs()
 	load_game()
 
