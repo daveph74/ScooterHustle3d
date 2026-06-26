@@ -19,6 +19,7 @@ var _powerup_rows := {}   # kind -> {row, bar}
 var _event_banner: Label
 var _pause_button: Button
 var _pause_overlay: Control
+var _debug_label: Label   # only used when Game.DEBUG_LANES is true
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
@@ -220,6 +221,20 @@ func flash_near_miss() -> void:
 	_near_miss_label.modulate.a = 1.0
 	var tween := create_tween()
 	tween.tween_property(_near_miss_label, "modulate:a", 0.0, 0.6)
+
+
+## Optional debug line (lane count / section). Created on first use so it costs
+## nothing when DEBUG_LANES is off.
+func set_debug(text: String) -> void:
+	if _debug_label == null:
+		_debug_label = Label.new()
+		_debug_label.add_theme_font_size_override("font_size", 20)
+		_debug_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
+		_debug_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+		_debug_label.offset_left = 16
+		_debug_label.offset_top = -44
+		add_child(_debug_label)
+	_debug_label.text = text
 
 
 ## Briefly announce a random event (fades in then out).

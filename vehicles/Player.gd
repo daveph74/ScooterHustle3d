@@ -23,13 +23,14 @@ signal shielded
 # traffic hit consumes it instead of ending the run.
 var shield_active := false
 
-# --- Lane layout (must match Game.gd) -------------------------------------
-const LANE_WIDTH := 2.5     # distance between lane centres
-const LANE_COUNT := 3
-const MIDDLE_LANE := 1      # lanes are 0,1,2 - we start in the middle
+# --- Lanes (driven by Game's RoadManager) ---------------------------------
+# World X of each lane centre on the CURRENT road section. Game pushes this
+# every frame via set_lanes(); it changes as the road narrows/widens between
+# 2, 3 and 4 lanes. Defaults to a 3-lane road until Game sets it.
+var lane_positions: Array = [-2.5, 0.0, 2.5]
 
-# Which lane we are currently aiming for (0 = left, 1 = middle, 2 = right).
-var current_lane := MIDDLE_LANE
+# Which lane we are aiming for, as an INDEX into lane_positions (0 = leftmost).
+var current_lane := 1
 # How quickly we slide between lanes. Set from the scooter's handling stat.
 var lane_change_speed := 9.0
 # Once we crash we stop responding to input.
@@ -68,12 +69,21 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 
 	# Snap to the starting lane immediately.
-	position.x = _lane_to_x(current_lane)
+	position.x = _current_lane_x()
 
 
-## Convert a lane index (0,1,2) into a world X position.
-func _lane_to_x(lane: int) -> float:
-	return (lane - MIDDLE_LANE) * LANE_WIDTH
+## World X of the lane we're aiming for. Clamps current_lane so a lane that
+## disappeared (road narrowed) resolves to the nearest valid lane - the
+## position lerp in _process then slides us there smoothly (no death).
+func _current_lane_x() -> float:
+	current_lane = clampi(current_lane, 0, lane_positions.size() - 1)
+	return lane_positions[current_lane]
+
+
+## Called by Game every frame with the current section's lane positions.
+func set_lanes(positions: Array) -> void:
+	lane_positions = positions
+	current_lane = clampi(current_lane, 0, lane_positions.size() - 1)
 
 
 func _process(delta: float) -> void:
@@ -90,7 +100,7 @@ func _process(delta: float) -> void:
 
 	# Smoothly slide toward the target lane (this is what makes lane changes
 	# feel nice instead of teleporting).
-	var target_x := _lane_to_x(current_lane)
+	var target_x := _current_lane_x()
 	var t: float = clamp(lane_change_speed * delta, 0.0, 1.0)
 	position.x = lerp(position.x, target_x, t)
 
@@ -101,7 +111,7 @@ func _process(delta: float) -> void:
 
 ## Move one lane left (dir = -1) or right (dir = +1), clamped to the road.
 func change_lane(dir: int) -> void:
-	var next_lane: int = clamp(current_lane + dir, 0, LANE_COUNT - 1)
+	var next_lane: int = clampi(current_lane + dir, 0, lane_positions.size() - 1)
 	if next_lane != current_lane:
 		current_lane = next_lane
 		_since_lane_change = 0.0   # reset the dodge timer on a real lane change

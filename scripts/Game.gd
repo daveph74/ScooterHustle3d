@@ -39,15 +39,17 @@ const LANDMARK_MODELS := [
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.
 const LANDMARK_YAW := 0.0
 
-# --- Lane layout (must match Player.gd) -----------------------------------
-const LANE_WIDTH := 2.5
-const LANES_X := [-2.5, 0.0, 2.5]   # world X of the three lane centres
+# --- Dynamic road sections (lanes change between 2 / 3 / 4) ---------------
+# RoadManager is the single source of truth for lane positions, road width and
+# dividers at any point on the road. Everything below asks road.config_at(world).
+var road := RoadManager.new()
+const MAX_ROAD_WIDTH := 11.5   # 4 lanes*2.5 + 2*0.75 shoulder; tiles are built this wide and scaled down per section
+const DEBUG_LANES := false     # set true to show lane count / section type on the HUD
 
 # --- Road geometry --------------------------------------------------------
 # Short overlapping tiles so hills/bends look smooth rather than blocky.
 const SEGMENT_LENGTH := 4.0    # length (in metres) of one road tile
 const SEGMENT_COUNT := 44      # how many tiles we keep in the world at once
-const ROAD_WIDTH := 9.0
 const GROUND_WIDTH := 150.0    # wide grass baked into each tile so it rolls too
 const SPAWN_Z := -150.0        # objects appear this far AHEAD of the player
 const DESPAWN_Z := 14.0        # objects past this (behind player) are removed
@@ -192,6 +194,13 @@ func _process(delta: float) -> void:
 	score_value += move * combo.multiplier() * powerups.score_mult()
 	score = int(score_value)
 
+	# Update the road's lane schedule and tell the player the current lanes.
+	road.update(distance)
+	var here_cfg := road.config_at(distance)
+	player.set_lanes(here_cfg.positions)
+	if DEBUG_LANES:
+		hud.set_debug("Lanes: %d  (%s)  x=%s" % [here_cfg.count, here_cfg.kind, str(here_cfg.positions)])
+
 	_scroll_road(move)
 	# Each vehicle drives at its own speed, so the player overtakes slower
 	# traffic - that relative motion is what makes traffic look alive.
@@ -273,23 +282,29 @@ func _make_road_segment() -> Node3D:
 	ground.position.y = -0.04
 	segment.add_child(ground)
 
-	# Asphalt road on top (tiny overlap so tilted tiles meet without a seam).
-	var road := MeshInstance3D.new()
+	# Asphalt road on top, built at the WIDEST road and scaled down per section
+	# in _scroll_road (tiny z overlap so tilted tiles meet without a seam).
+	var road_mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(ROAD_WIDTH, SEGMENT_LENGTH + 0.08)
-	road.mesh = plane
-	road.material_override = _road_material
-	segment.add_child(road)
+	plane.size = Vector2(MAX_ROAD_WIDTH, SEGMENT_LENGTH + 0.08)
+	road_mesh.mesh = plane
+	road_mesh.material_override = _road_material
+	segment.add_child(road_mesh)
+	segment.set_meta("asphalt", road_mesh)
 
-	# One dash on each lane divider (length = half the tile = dash + gap).
-	for divider_x in [-LANE_WIDTH * 0.5, LANE_WIDTH * 0.5]:
+	# Up to 3 lane-divider dashes (enough for a 4-lane road). _scroll_road shows
+	# and positions the right number for the current section's lane count.
+	var dashes: Array = []
+	for i in range(3):
 		var dash := MeshInstance3D.new()
 		var box := BoxMesh.new()
 		box.size = Vector3(0.18, 0.02, SEGMENT_LENGTH * 0.5)
 		dash.mesh = box
 		dash.material_override = _dash_material
-		dash.position = Vector3(divider_x, 0.02, 0.0)
+		dash.position = Vector3(0, 0.02, 0)
 		segment.add_child(dash)
+		dashes.append(dash)
+	segment.set_meta("dashes", dashes)
 
 	return segment
 
@@ -315,6 +330,18 @@ func _scroll_road(amount: float) -> void:
 		# Pitch to the slope and yaw into the bend so neighbours line up.
 		segment.rotation.x = atan2(far.y - near.y, SEGMENT_LENGTH)
 		segment.rotation.y = atan2(near.x - far.x, SEGMENT_LENGTH)
+
+		# Width + lane markings for this tile's spot on the road (narrow/widen).
+		var cfg := road.config_at(distance - c)
+		var asphalt: MeshInstance3D = segment.get_meta("asphalt")
+		asphalt.scale.x = cfg.road_width / MAX_ROAD_WIDTH
+		var dashes: Array = segment.get_meta("dashes")
+		var dividers: Array = cfg.dividers
+		for i in range(dashes.size()):
+			var dash: MeshInstance3D = dashes[i]
+			dash.visible = i < dividers.size()
+			if dash.visible:
+				dash.position.x = dividers[i]
 
 
 # ==========================================================================
@@ -351,44 +378,50 @@ func _spawn_traffic() -> void:
 	_spawn_traffic_at(SPAWN_Z)
 
 
-## Spawn a "row" of traffic at the given distance ahead. A row NEVER blocks all
-## three lanes: the current safe lane is always left open. Used both for normal
-## spawning (at SPAWN_Z) and for pre-populating the road at startup.
+## Spawn a "row" of traffic at the given distance ahead. A row NEVER blocks the
+## safe lane, so the road is always passable - whatever the current lane count.
+## Used both for normal spawning (at SPAWN_Z) and for startup pre-population.
 func _spawn_traffic_at(z: float) -> void:
+	var cfg := road.config_at(distance - z)
+	if cfg.is_transition:
+		return   # leave the narrow/widen buffer zone clear of obstacles
+	var count: int = cfg.count
+	var positions: Array = cfg.positions
 	var types := ["jeepney", "tricycle", "bus", "car"]
 
-	# The two lanes that are not the guaranteed-open one.
-	var other_lanes: Array[int] = []
-	for lane in [0, 1, 2]:
+	# Keep the safe lane valid for this section's lane count.
+	_safe_lane = clampi(_safe_lane, 0, count - 1)
+
+	# Lanes that are not the guaranteed-open one.
+	var other_lanes: Array = []
+	for lane in range(count):
 		if lane != _safe_lane:
 			other_lanes.append(lane)
 
-	# Later in the run, sometimes block BOTH other lanes (only the safe lane is
-	# open - harder). Early on, block just one (two lanes open - easy). The
-	# active event can bias toward heavier rows, but the safe lane is NEVER
-	# blocked, so the run stays solvable.
-	var block_both := elapsed > 20.0 and randf() < (0.5 + events.block_both_bias())
+	# On a 2-lane road only ever block ONE lane (the other stays open). On wider
+	# roads, later in the run, sometimes block ALL non-safe lanes. The safe lane
+	# is NEVER blocked, so the row is always solvable.
+	var block_all := count >= 3 and elapsed > 20.0 and randf() < (0.5 + events.block_both_bias())
 	var blocked: Array = []
-	if block_both:
-		blocked = other_lanes            # block both non-safe lanes
+	if block_all:
+		blocked = other_lanes
 	else:
-		blocked.append(other_lanes[randi() % other_lanes.size()])  # block just one
+		blocked.append(other_lanes[randi() % other_lanes.size()])
 
 	var traffic_speed := TRAFFIC_SPEED_FRACTION * base_speed * events.traffic_speed_mult()
 	for lane in blocked:
 		var vehicle := TRAFFIC_SCENE.instantiate()
 		traffic_container.add_child(vehicle)
 		vehicle.setup(types[randi() % types.size()])
-		vehicle.position = Vector3(LANES_X[lane], 0.0, z)
-		vehicle.set_meta("bx", LANES_X[lane])
+		vehicle.position = Vector3(positions[lane], 0.0, z)
+		vehicle.set_meta("bx", positions[lane])
 		vehicle.set_meta("by", 0.0)
 		vehicle.drive_speed = traffic_speed
 
-	# Only shift the safe lane when two lanes are open (there is room to cross).
-	# When only one lane is open we keep it put, so the player is never forced
-	# to change lanes through a tight gap.
-	if not block_both:
-		_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, 2)
+	# Shift the open lane by at most one, only when more than one lane is open,
+	# so the player can always follow it with a single swipe.
+	if not block_all:
+		_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, count - 1)
 
 
 ## Put some traffic on the road at startup so it isn't empty for the first few
@@ -434,14 +467,17 @@ func _check_near_miss(vehicle: Node3D) -> void:
 ## Spawn a short line of coins in one lane - more satisfying than singles.
 ## We use the safe lane so the coins gently guide the player along the open path.
 func _spawn_coin_line() -> void:
-	var lane := _safe_lane
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return
+	var lane_x: float = cfg.positions[clampi(_safe_lane, 0, cfg.count - 1)]
 	# Coin-rich events (fiesta/market) add extra coins to each line.
 	var count := randi_range(3, 5) + events.coin_line_bonus()
 	for i in range(count):
 		var coin := COIN_SCENE.instantiate()
 		coin_container.add_child(coin)
-		coin.position = Vector3(LANES_X[lane], 0.7, SPAWN_Z - i * 2.2)
-		coin.set_meta("bx", LANES_X[lane])
+		coin.position = Vector3(lane_x, 0.7, SPAWN_Z - i * 2.2)
+		coin.set_meta("bx", lane_x)
 		coin.set_meta("by", 0.7)
 
 
@@ -467,11 +503,15 @@ func _scroll_coins(amount: float) -> void:
 
 func _spawn_powerup() -> void:
 	# Power-ups appear in the current safe lane so they're always reachable.
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return
+	var lane_x: float = cfg.positions[clampi(_safe_lane, 0, cfg.count - 1)]
 	var pu = POWERUP_SCRIPT.new()
 	powerup_container.add_child(pu)
 	pu.setup(POWERUP_KINDS[randi() % POWERUP_KINDS.size()])
-	pu.position = Vector3(LANES_X[_safe_lane], 0.0, SPAWN_Z)
-	pu.set_meta("bx", LANES_X[_safe_lane])
+	pu.position = Vector3(lane_x, 0.0, SPAWN_Z)
+	pu.set_meta("bx", lane_x)
 	pu.set_meta("by", 0.0)
 
 
@@ -527,8 +567,9 @@ func _spawn_scenery_at(z: float) -> void:
 		holder.rotate_y(randf_range(0.0, TAU))
 
 	# Push the prop out by its own footprint so its edge always clears the road,
-	# no matter how big the model was scaled or how it was rotated.
-	var road_edge := ROAD_WIDTH * 0.5
+	# no matter how big the model was scaled or how it was rotated. The road's
+	# width here varies with the lane count, so props hug it as it narrows/widens.
+	var road_edge := road.config_at(distance - z).road_width * 0.5
 	var radius := ModelUtil.footprint_radius(holder)
 	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, z)
 	holder.set_meta("bx", holder.position.x)
