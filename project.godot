@@ -29,7 +29,9 @@ MissionManager="*res://systems/MissionManager.gd"
 ; Portrait, phone-shaped window. 1080x1920 is a common phone resolution.
 window/size/viewport_width=1080
 window/size/viewport_height=1920
-window/handheld/orientation="portrait"
+; Godot 4 expects an integer enum here (0=Landscape, 1=Portrait). The old
+; string "portrait" is silently ignored -> phone showed landscape.
+window/handheld/orientation=1
 ; Scale the game to fit any screen while keeping the aspect ratio.
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
