@@ -49,6 +49,7 @@ const LANDMARK_YAW := 0.0
 # dividers at any point on the road. Everything below asks road.config_at(world).
 var road := RoadManager.new()
 const MAX_ROAD_WIDTH := 11.5   # 4 lanes*2.5 + 2*0.75 shoulder; tiles are built this wide and scaled down per section
+const SIDEWALK_WIDTH := 2.6    # raised concrete pavement along each road edge (buildings sit on it)
 const DEBUG_LANES := false     # set true to show lane count / section type on the HUD
 
 # --- Road geometry --------------------------------------------------------
@@ -128,6 +129,7 @@ var _segments: Array[Node3D] = []
 var _road_material: StandardMaterial3D
 var _dash_material: StandardMaterial3D
 var _ground_material: StandardMaterial3D
+var _sidewalk_material: StandardMaterial3D
 
 # Node references (filled in _ready). @onready waits until children exist.
 @onready var player: Player = $Player
@@ -281,6 +283,10 @@ func _make_road_materials() -> void:
 	_ground_material.albedo_color = Color(0.32, 0.42, 0.26)  # grass
 	_ground_material.roughness = 1.0
 
+	_sidewalk_material = StandardMaterial3D.new()
+	_sidewalk_material.albedo_color = Color(0.62, 0.62, 0.64)  # pale concrete
+	_sidewalk_material.roughness = 1.0
+
 
 ## Create the pool of road tiles once at startup.
 func _build_road() -> void:
@@ -317,6 +323,22 @@ func _make_road_segment() -> Node3D:
 	road_mesh.material_override = _road_material
 	segment.add_child(road_mesh)
 	segment.set_meta("asphalt", road_mesh)
+
+	# A raised concrete sidewalk down each edge, bridging the gap between the
+	# asphalt and the buildings so the street reads as one piece. _scroll_road
+	# slides each one flush to the current section's road edge (narrow/widen).
+	var sidewalks: Array = []
+	for s in [-1.0, 1.0]:
+		var walk := MeshInstance3D.new()
+		var kerb := BoxMesh.new()
+		# Slightly longer than the tile (z overlap) so tilted tiles meet seamlessly.
+		kerb.size = Vector3(SIDEWALK_WIDTH, 0.18, SEGMENT_LENGTH + 0.08)
+		walk.mesh = kerb
+		walk.material_override = _sidewalk_material
+		walk.set_meta("side", s)
+		segment.add_child(walk)
+		sidewalks.append(walk)
+	segment.set_meta("sidewalks", sidewalks)
 
 	# Up to 3 lane-divider dashes (enough for a 4-lane road). _scroll_road shows
 	# and positions the right number for the current section's lane count.
@@ -361,6 +383,15 @@ func _scroll_road(amount: float) -> void:
 		var cfg := road.config_at(distance - c)
 		var asphalt: MeshInstance3D = segment.get_meta("asphalt")
 		asphalt.scale.x = cfg.road_width / MAX_ROAD_WIDTH
+
+		# Sit each sidewalk just outside the (current) road edge, top a touch
+		# above the asphalt so it reads as a raised kerb.
+		var road_edge: float = cfg.road_width * 0.5
+		var sidewalks: Array = segment.get_meta("sidewalks")
+		for walk in sidewalks:
+			var sgn: float = walk.get_meta("side")
+			walk.position = Vector3(sgn * (road_edge + SIDEWALK_WIDTH * 0.5), 0.05, 0.0)
+
 		var dashes: Array = segment.get_meta("dashes")
 		var dividers: Array = cfg.dividers
 		for i in range(dashes.size()):
