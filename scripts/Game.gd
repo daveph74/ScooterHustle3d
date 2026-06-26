@@ -78,6 +78,12 @@ const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
 # All traffic shares ONE speed (as a fraction of the player's), so vehicles
 # keep their formation and never drift into an impossible 3-lane wall.
 const TRAFFIC_SPEED_FRACTION := 0.45
+# When the road narrows, a car whose lane vanishes steers off to the shoulder at
+# this lateral speed and despawns (its collision is disabled first, so it can
+# never cause an unfair crash). LANE_MATCH_TOL = how close a car's lane X must be
+# to a valid lane centre to still count as "in a lane".
+const MERGE_OFF_SPEED := 10.0
+const LANE_MATCH_TOL := 0.4
 # The lane that is GUARANTEED open in the current row of traffic. It only ever
 # moves one lane at a time, so the player can always follow it with one swipe.
 var _safe_lane := 1
@@ -520,10 +526,57 @@ func _scroll_traffic(delta: float) -> void:
 		# driving forward at its own speed, so it closes on the player at the
 		# difference. Since the player is faster, we always overtake it.
 		vehicle.position.z += (speed - vehicle.drive_speed) * delta
+
+		# Vehicles (not pedestrians, who don't drive forward) slowly drift through
+		# the world as they're overtaken. If one drifts into a transition or into a
+		# section where its lane no longer exists, it would become an unfair,
+		# undodgeable block - so it steers off to the shoulder and leaves.
+		if vehicle is TrafficVehicle:
+			_handle_lane_merge(vehicle, delta)
+
 		_apply_path(vehicle)
 		_check_near_miss(vehicle)
 		if vehicle.position.z > DESPAWN_Z:
 			vehicle.queue_free()
+
+
+## True if `bx` is (close to) a valid lane centre at this world config and we're
+## not in a transition - i.e. a car sitting at bx is in a real, drivable lane.
+func _lane_valid_at(bx: float, cfg: Dictionary) -> bool:
+	if cfg.is_transition:
+		return false
+	for x in cfg.positions:
+		if absf(bx - x) <= LANE_MATCH_TOL:
+			return true
+	return false
+
+
+## If a vehicle's lane has vanished (road narrowing), retire it gracefully: kill
+## its collision immediately (so it can never cause an unfair hit) and steer it
+## off toward the nearest shoulder, then free it once it's clear of the asphalt.
+func _handle_lane_merge(vehicle: TrafficVehicle, delta: float) -> void:
+	var bx: float = vehicle.get_meta("bx", 0.0)
+
+	if not vehicle.has_meta("merge_dir"):
+		# Only react while the car is still AHEAD of the player (z < 0); cars are
+		# always ahead until overtaken, so this fires near the narrowing, never
+		# right beside the player.
+		if vehicle.position.z >= 0.0:
+			return
+		var cfg := road.config_at(distance - vehicle.position.z)
+		if _lane_valid_at(bx, cfg):
+			return
+		# Doomed: pick the nearer shoulder and disable collision so it's harmless.
+		vehicle.set_meta("merge_dir", signf(bx) if absf(bx) > 0.01 else -1.0)
+		vehicle.collision_layer = 0
+
+	# Slide outward toward the shoulder; free once fully off the road.
+	var dir: float = vehicle.get_meta("merge_dir")
+	bx += dir * MERGE_OFF_SPEED * delta
+	vehicle.set_meta("bx", bx)
+	var edge: float = road.config_at(distance - vehicle.position.z).road_width * 0.5
+	if absf(bx) > edge + 2.0:
+		vehicle.queue_free()
 
 
 ## A "near miss" is when traffic passes the player in an ADJACENT lane without
