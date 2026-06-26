@@ -30,6 +30,14 @@ const TREE_MODELS := [
 	preload("res://models/city/grass-trees.glb"),
 	preload("res://models/city/grass-trees-tall.glb"),
 ]
+# Recognisable landmarks (custom Meshy models). Unlike generic buildings these
+# are oriented to FACE THE ROAD so you always see the storefront.
+const LANDMARK_MODELS := [
+	preload("res://models/custom/jollibee.glb"),
+]
+# Base yaw so a landmark's front faces the road on the LEFT side; the right side
+# is auto-flipped by 180. Tune this if the storefront faces the wrong way.
+const LANDMARK_YAW := 0.0
 
 # --- Lane layout (must match Player.gd) -----------------------------------
 const LANE_WIDTH := 2.5
@@ -494,18 +502,29 @@ func _spawn_scenery_at(z: float) -> void:
 
 	var holder: Node3D
 	var gap: float   # extra space between the road edge and this prop
+	var is_landmark := false
 	if randf() < 0.45:
 		# A clump of trees, sitting close to the road edge.
 		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
 		gap = randf_range(1.0, 3.0)
+	elif LANDMARK_MODELS.size() > 0 and randf() < 0.18:
+		# A recognisable landmark (e.g. Jollibee), oriented to face the road.
+		var model: PackedScene = LANDMARK_MODELS[randi() % LANDMARK_MODELS.size()]
+		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(9, randf_range(8.0, 11.0), 9), "height", 0.0)
+		gap = randf_range(2.0, 4.0)
+		is_landmark = true
 	else:
-		# A building, set back a little further.
+		# A generic building, set back a little further.
 		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", 0.0)
 		gap = randf_range(2.5, 6.0)
 
-	holder.rotate_y(randf_range(0.0, TAU))
+	if is_landmark:
+		# Face the storefront toward the road (auto-flip for the right side).
+		holder.rotation_degrees.y = LANDMARK_YAW + (0.0 if _scenery_left else 180.0)
+	else:
+		holder.rotate_y(randf_range(0.0, TAU))
 
 	# Push the prop out by its own footprint so its edge always clears the road,
 	# no matter how big the model was scaled or how it was rotated.
