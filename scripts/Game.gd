@@ -131,6 +131,7 @@ var _road_material: StandardMaterial3D
 var _dash_material: StandardMaterial3D
 var _ground_material: StandardMaterial3D
 var _sidewalk_material: StandardMaterial3D
+var _curb_material: StandardMaterial3D
 
 # Node references (filled in _ready). @onready waits until children exist.
 @onready var player: Player = $Player
@@ -288,6 +289,10 @@ func _make_road_materials() -> void:
 	_sidewalk_material.albedo_color = Color(0.62, 0.62, 0.64)  # pale concrete
 	_sidewalk_material.roughness = 1.0
 
+	_curb_material = StandardMaterial3D.new()
+	_curb_material.albedo_color = Color(0.12, 0.12, 0.13)  # dark kerb lip
+	_curb_material.roughness = 1.0
+
 
 ## Create the pool of road tiles once at startup.
 func _build_road() -> void:
@@ -329,17 +334,30 @@ func _make_road_segment() -> Node3D:
 	# asphalt and the buildings so the street reads as one piece. _scroll_road
 	# slides each one flush to the current section's road edge (narrow/widen).
 	var sidewalks: Array = []
+	var curbs: Array = []
 	for s in [-1.0, 1.0]:
 		var walk := MeshInstance3D.new()
-		var kerb := BoxMesh.new()
+		var slab := BoxMesh.new()
 		# Slightly longer than the tile (z overlap) so tilted tiles meet seamlessly.
-		kerb.size = Vector3(SIDEWALK_WIDTH, 0.18, SEGMENT_LENGTH + 0.08)
-		walk.mesh = kerb
+		slab.size = Vector3(SIDEWALK_WIDTH, 0.18, SEGMENT_LENGTH + 0.08)
+		walk.mesh = slab
 		walk.material_override = _sidewalk_material
 		walk.set_meta("side", s)
 		segment.add_child(walk)
 		sidewalks.append(walk)
+
+		# A dark kerb lip riding the road edge, proud of the pavement, to crisply
+		# separate road from sidewalk.
+		var curb := MeshInstance3D.new()
+		var lip := BoxMesh.new()
+		lip.size = Vector3(0.16, 0.24, SEGMENT_LENGTH + 0.08)
+		curb.mesh = lip
+		curb.material_override = _curb_material
+		curb.set_meta("side", s)
+		segment.add_child(curb)
+		curbs.append(curb)
 	segment.set_meta("sidewalks", sidewalks)
+	segment.set_meta("curbs", curbs)
 
 	# Up to 3 lane-divider dashes (enough for a 4-lane road). _scroll_road shows
 	# and positions the right number for the current section's lane count.
@@ -392,6 +410,10 @@ func _scroll_road(amount: float) -> void:
 		for walk in sidewalks:
 			var sgn: float = walk.get_meta("side")
 			walk.position = Vector3(sgn * (road_edge + SIDEWALK_WIDTH * 0.5), 0.05, 0.0)
+		var curbs: Array = segment.get_meta("curbs")
+		for curb in curbs:
+			var csgn: float = curb.get_meta("side")
+			curb.position = Vector3(csgn * road_edge, 0.06, 0.0)
 
 		var dashes: Array = segment.get_meta("dashes")
 		var dividers: Array = cfg.dividers

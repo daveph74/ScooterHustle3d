@@ -238,9 +238,10 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 - This is why dropping in any new `.glb` "just works" at the right size.
 
 ### 6.8 Scenery — the "street wall" (`Game._fill_scenery`, `_spawn_scenery`)
-A **raised concrete sidewalk** (`SIDEWALK_WIDTH`) is baked into each road tile
-down both edges (built in `_make_road_segment`, positioned flush to the current
-section's road edge in `_scroll_road`, so it narrows/widens with the road).
+A **raised concrete sidewalk** (`SIDEWALK_WIDTH`) with a **dark kerb lip** at the
+road edge is baked into each road tile down both edges (built in
+`_make_road_segment`, positioned flush to the current section's road edge in
+`_scroll_road`, so it narrows/widens with the road).
 Buildings are set back onto it, bridging the asphalt and the frontage so the
 street reads as one piece instead of buildings floating on grass.
 
