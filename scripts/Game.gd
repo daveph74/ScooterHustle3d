@@ -95,9 +95,13 @@ var traffic_timer := 0.0
 var traffic_interval := 1.5    # seconds between traffic spawns (shrinks over time)
 var coin_timer := 0.0
 var coin_interval := 1.7
-var scenery_timer := 0.0
-var scenery_interval := 0.9       # seconds between roadside props
-var _scenery_left := true         # alternate sides as we spawn
+# Roadside scenery is built as a CONTINUOUS "street wall" on each side: buildings
+# are packed back-to-back by their footprint depth so the frontage looks joined
+# up rather than scattered. These cursors track the far edge (local z) of the row
+# already placed on each side; new buildings extend it toward the horizon.
+var _wall_z_left := DESPAWN_Z
+var _wall_z_right := DESPAWN_Z
+const SCENERY_GAP := 0.5          # small spacing between neighbours (0 = touching)
 var powerup_timer := 8.0          # first power-up can appear a bit into the run
 const POWERUP_MIN_GAP := 12.0     # power-ups are rare: 12-20s apart
 const POWERUP_MAX_GAP := 20.0
@@ -237,11 +241,6 @@ func _process(delta: float) -> void:
 	if coin_timer <= 0.0:
 		coin_timer = coin_interval * events.coin_interval_mult()
 		_spawn_coin_line()
-
-	scenery_timer -= delta
-	if scenery_timer <= 0.0:
-		scenery_timer = scenery_interval * events.scenery_interval_mult()
-		_spawn_scenery_at(SPAWN_Z)
 
 	powerup_timer -= delta
 	if powerup_timer <= 0.0:
@@ -620,61 +619,85 @@ func _scroll_powerups(amount: float) -> void:
 #  ROADSIDE SCENERY (buildings & trees)
 # ==========================================================================
 
-## Fill the road sides with scenery at startup so the world isn't empty.
+## Fill both road sides with a continuous wall of scenery at startup.
 func _prewarm_scenery() -> void:
-	var z := SPAWN_Z
-	while z < DESPAWN_Z:
-		_spawn_scenery_at(z)
-		z += randf_range(5.0, 9.0)
+	_fill_scenery()
 
 
-## Spawn one building or tree just off the road, on alternating sides.
-func _spawn_scenery_at(z: float) -> void:
-	_scenery_left = not _scenery_left
-	var side := -1.0 if _scenery_left else 1.0
+## Top up each side's street wall so buildings always reach out to SPAWN_Z. As
+## the world scrolls the far edge of each row drifts toward the player, opening a
+## gap at the horizon that we immediately refill - giving a seamless frontage.
+func _fill_scenery() -> void:
+	_wall_z_left = _fill_side(-1.0, _wall_z_left)
+	_wall_z_right = _fill_side(1.0, _wall_z_right)
 
+
+func _fill_side(side: float, wall_z: float) -> float:
+	# Keep extending this side's row toward the horizon until it passes SPAWN_Z.
+	while wall_z > SPAWN_Z:
+		wall_z = _spawn_scenery(side, wall_z)
+	return wall_z
+
+
+## Place ONE prop on the given side whose NEAR edge sits at wall_z, and return the
+## new far edge (so the next prop butts up against this one). Buildings face the
+## road so the row reads as a real street rather than scattered boxes.
+func _spawn_scenery(side: float, wall_z: float) -> float:
 	var holder: Node3D
-	var gap: float   # extra space between the road edge and this prop
-	var is_landmark := false
-	if randf() < 0.45:
-		# A clump of trees, sitting close to the road edge.
+	var gap: float          # extra setback from the road edge
+	var faces_road := true  # buildings/landmarks turn their front to the street
+	var roll := randf()
+	if roll < 0.25:
+		# A clump of trees right at the kerb (small, breaks up the frontage).
 		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
-		gap = randf_range(1.0, 3.0)
-	elif LANDMARK_MODELS.size() > 0 and randf() < 0.18:
-		# A recognisable landmark (e.g. Jollibee), oriented to face the road.
+		gap = randf_range(0.2, 1.0)
+		faces_road = false
+	elif LANDMARK_MODELS.size() > 0 and roll < 0.45:
+		# A recognisable landmark (Jollibee, church, Petron...), facing the road.
 		var model: PackedScene = LANDMARK_MODELS[randi() % LANDMARK_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(9, randf_range(8.0, 11.0), 9), "height", 0.0)
-		gap = randf_range(2.0, 4.0)
-		is_landmark = true
+		gap = randf_range(0.6, 1.4)
 	else:
-		# A generic building, set back a little further.
+		# A generic building, hugging the road to form the street wall.
 		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", 0.0)
-		gap = randf_range(2.5, 6.0)
+		gap = randf_range(0.5, 1.8)
 
-	if is_landmark:
-		# Face the storefront toward the road (auto-flip for the right side).
-		holder.rotation_degrees.y = LANDMARK_YAW + (0.0 if _scenery_left else 180.0)
+	if faces_road:
+		# Front toward the road (auto-flip on the right side), with a tiny jitter
+		# so the row isn't unnaturally perfect.
+		var flip := 0.0 if side < 0.0 else 180.0
+		holder.rotation_degrees.y = LANDMARK_YAW + flip + randf_range(-4.0, 4.0)
 	else:
 		holder.rotate_y(randf_range(0.0, TAU))
 
-	# Push the prop out by its own footprint so its edge always clears the road,
-	# no matter how big the model was scaled or how it was rotated. The road's
-	# width here varies with the lane count, so props hug it as it narrows/widens.
-	var road_edge: float = road.config_at(distance - z).road_width * 0.5
+	# Pack along Z by the prop's own footprint depth so neighbours touch. The
+	# floor guarantees the cursor always advances (no stuck fill loop).
 	var radius := ModelUtil.footprint_radius(holder)
-	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, z)
+	var depth: float = maxf(radius * 2.0, 2.0)
+	var center_z := wall_z - depth * 0.5
+
+	# Push out by the footprint so the edge always clears the (variable-width) road.
+	var road_edge: float = road.config_at(distance - center_z).road_width * 0.5
+	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, center_z)
 	holder.set_meta("bx", holder.position.x)
 	holder.set_meta("by", 0.0)
 
+	return wall_z - depth - SCENERY_GAP
+
 
 func _scroll_scenery(amount: float) -> void:
+	# The far-edge cursors ride along with the row as it scrolls.
+	_wall_z_left += amount
+	_wall_z_right += amount
 	for prop in scenery_container.get_children():
 		prop.position.z += amount
 		_apply_path(prop)
 		if prop.position.z > DESPAWN_Z + 6.0:
 			prop.queue_free()
+	# Refill the horizon end now that everything has moved forward.
+	_fill_scenery()
 
 
 # ==========================================================================

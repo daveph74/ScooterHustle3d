@@ -237,16 +237,26 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 - `footprint_radius(holder)` returns half the larger horizontal dimension after fitting — used to push scenery far enough off the road that it never overlaps, regardless of model size/rotation.
 - This is why dropping in any new `.glb` "just works" at the right size.
 
-### 6.8 Scenery (`Game._spawn_scenery_at`, `_prewarm_scenery`)
-Buildings (height 7–16) and tree clumps (height 3–5) from the Kenney City Kit,
-placed on alternating sides at `road_edge + gap + footprint_radius`, random yaw,
-scrolled and recycled like everything else, and displaced by the same path so
-they ride the hills/bends. **`road_edge` is read from `RoadManager.config_at(...)`
-each spawn, so props hug the road as it narrows/widens.**
-**Landmarks** (`LANDMARK_MODELS` — custom Meshy `jollibee`/`church`/`insal`/`petron`/
-`sari-sari`) spawn ~18% of the time and, unlike generic buildings, are **oriented
-to face the road** (base `LANDMARK_YAW`, auto-flipped 180° on the right side) so
-you always see the storefront.
+### 6.8 Scenery — the "street wall" (`Game._fill_scenery`, `_spawn_scenery`)
+Roadside scenery is built as a **continuous frontage** on each side so the world
+reads as a real street rather than scattered boxes. Instead of a loose spawn
+timer, each side keeps a far-edge cursor (`_wall_z_left/right`); `_fill_side`
+packs props **back-to-back by their footprint depth** (`+ SCENERY_GAP`) out to
+`SPAWN_Z`. `_scroll_scenery` advances both cursors with the world each frame and
+calls `_fill_scenery` to refill the horizon as the row scrolls toward the player.
+
+- Mix per slot: ~25% **tree clumps** (small kerb fillers, random yaw), ~20%
+  **landmarks** (`LANDMARK_MODELS` — Meshy `jollibee`/`church`/`insal`/`petron`/
+  `sari-sari`), rest **generic buildings** (Kenney City Kit, height 7–16).
+- Buildings + landmarks are **turned to face the road** (`LANDMARK_YAW` + a 180°
+  flip on the right side + a small ±4° jitter) so the facades line the street.
+- Pushed out by `road_edge + gap + footprint_radius`, where `road_edge` comes
+  from `RoadManager.config_at(...)`, so the wall hugs the road as it
+  narrows/widens. Everything still scrolls/recycles and rides the hill/bend path.
+- A `maxf(depth, 2.0)` floor guarantees the fill cursor always advances (no stuck
+  loop on a degenerate model). **Perf note:** the wall is denser than the old
+  scattered props — profile on device; raise `SCENERY_GAP` or trim the fill
+  distance if needed.
 
 ### 6.9 Audio (`systems/AudioManager.gd`)
 - Autoload, persists across scenes, so music is continuous.
@@ -357,7 +367,7 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 | Road smoothness | `SEGMENT_LENGTH` (smaller = smoother, more nodes) / `SEGMENT_COUNT` |
 | Spawn distance / cull | `SPAWN_Z` / `DESPAWN_Z` |
 | Coin frequency | `coin_interval` |
-| Scenery density | `scenery_interval` |
+| Scenery density / spacing | `SCENERY_GAP` + the type-mix `roll` thresholds in `_spawn_scenery` |
 | Lane debug overlay | `Game.DEBUG_LANES` |
 
 Per-scooter feel: the `.tres` files (`speed`, `handling`). Swipe sensitivity:
