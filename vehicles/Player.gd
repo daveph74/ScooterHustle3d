@@ -39,10 +39,10 @@ var alive := true
 var _since_lane_change := 999.0
 
 # --- Visual model ---------------------------------------------------------
-# The scooter mesh (Kenney "Car Kit" motorcycle, MIT licensed). The model is
-# auto-scaled to fit, so we only ever tweak this facing flag if it points the
-# wrong way down the road.
-const SCOOTER_MODEL := preload("res://models/racing/vehicle-motorcycle.glb")
+# Custom "Pilipinas Hustle" scooter (generated on Meshy, optimised to ~30k tris
+# / 1K textures). ModelUtil auto-scales it to fit, so we only ever tweak this
+# facing flag if it points the wrong way down the road.
+const SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
 const SCOOTER_FACES_BACK := true
 
 # --- Swipe detection ------------------------------------------------------
