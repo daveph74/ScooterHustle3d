@@ -33,6 +33,10 @@ var _music_player: AudioStreamPlayer
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_index := 0
 
+# A continuous looping engine note whose pitch rises with the scooter's speed.
+const ENGINE_STREAM := preload("res://audio/sfx/engine.wav")
+var _engine_player: AudioStreamPlayer
+
 
 func _ready() -> void:
 	# Load whichever track files are present and make each one loop seamlessly.
@@ -55,6 +59,14 @@ func _ready() -> void:
 		player.volume_db = -6.0
 		add_child(player)
 		_sfx_players.append(player)
+
+	# The engine loop: quieter than effects (it plays constantly) and set to loop.
+	_enable_loop(ENGINE_STREAM)
+	_engine_player = AudioStreamPlayer.new()
+	_engine_player.stream = ENGINE_STREAM
+	_engine_player.volume_db = -13.0
+	_engine_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_engine_player)
 
 	_apply_music()
 
@@ -127,3 +139,29 @@ func play_sfx(name: String, pitch: float = 1.0) -> void:
 func set_sfx_enabled(on: bool) -> void:
 	GameData.sfx_on = on
 	GameData.save_game()
+	if not on:
+		stop_engine()
+
+
+# --- Engine loop ----------------------------------------------------------
+
+## Called every gameplay frame with a 0..1 speed ratio. Keeps the engine looping
+## (while SFX are on) and raises its pitch with speed. Stops it if SFX are muted.
+func update_engine(speed_ratio: float) -> void:
+	if not GameData.sfx_on:
+		if _engine_player.playing:
+			_engine_player.stop()
+		return
+	if not _engine_player.playing:
+		_engine_player.play()
+	_engine_player.stream_paused = false
+	_engine_player.pitch_scale = lerpf(0.8, 1.7, clampf(speed_ratio, 0.0, 1.0))
+
+
+func stop_engine() -> void:
+	_engine_player.stop()
+
+
+## Pause/unpause the engine without losing its place (used by the pause menu).
+func set_engine_paused(paused: bool) -> void:
+	_engine_player.stream_paused = paused

@@ -271,6 +271,9 @@ calls `_fill_scenery` to refill the horizon as the row scrolls toward the player
 - 3 music loops; looping enabled in code (`AudioStreamWAV.LOOP_FORWARD`, `loop_end` computed from length). Music at −6 dB.
 - SFX pool of 6 players (round-robin so overlaps don't cut out), at **−6 dB (50% volume)**.
 - Public API: `play_sfx(name)`, `toggle_music()`, `set_music_enabled(bool)`, `next_track()`, `current_track_name()`, `set_sfx_enabled(bool)`.
+- **Music tracks** are MP3s loaded at runtime from `MUSIC_TRACKS` (path + name); looping is format-aware (`_enable_loop` handles MP3/OGG/WAV). Missing files are skipped so the game still runs.
+- **Engine loop**: a dedicated looping `_engine_player`. `update_engine(speed_ratio)` (called each gameplay frame by `Game`) keeps it playing while SFX are on and raises `pitch_scale` 0.8→1.7 with speed; `stop_engine()` on crash / restart / menu; `set_engine_paused(bool)` from the pause menu.
+- **scream** SFX plays on a real crash (with the rider fling-off); **engine.wav**/**scream.wav** are procedural placeholders, drop-in replaceable.
 - Settings (`music_on`, `sfx_on`, `music_track`) live in `GameData` and are saved.
 - **Audio is procedurally generated chiptune** (see §9) — placeholder quality, designed to be drop-in replaceable.
 

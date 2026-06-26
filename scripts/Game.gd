@@ -270,6 +270,8 @@ func _process(delta: float) -> void:
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
+	# Engine note revs up as we go faster.
+	AudioManager.update_engine((speed - base_speed) / (MAX_SPEED - base_speed + 0.001))
 	_update_camera(delta)
 	_update_shake(delta)
 
@@ -960,6 +962,7 @@ func _on_player_crashed() -> void:
 		return
 	playing = false
 	_add_shake(0.6, 0.6)   # a hard jolt on impact
+	AudioManager.stop_engine()        # the engine cuts out on impact
 	AudioManager.play_sfx("crash")
 	AudioManager.play_sfx("scream")   # the rider yelps as he's flung off
 	combo.on_crash()

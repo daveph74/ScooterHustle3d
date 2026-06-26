@@ -160,24 +160,28 @@ func _on_pause() -> void:
 	if not _pause_button.visible:
 		return
 	AudioManager.play_sfx("click")
+	AudioManager.set_engine_paused(true)   # hush the engine while paused
 	get_tree().paused = true
 	_pause_overlay.visible = true
 
 
 func _on_resume() -> void:
 	AudioManager.play_sfx("click")
+	AudioManager.set_engine_paused(false)
 	get_tree().paused = false
 	_pause_overlay.visible = false
 
 
 func _on_restart() -> void:
 	AudioManager.play_sfx("click")
+	AudioManager.stop_engine()             # the new run will start it again
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
 
 func _on_menu() -> void:
 	AudioManager.play_sfx("click")
+	AudioManager.stop_engine()             # no engine on the menu
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://ui/MainMenu.tscn")
 
