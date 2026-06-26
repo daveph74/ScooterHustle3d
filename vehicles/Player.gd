@@ -47,6 +47,18 @@ const SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
 # Rotate the model so it faces down the road. Tune in 90° steps if needed.
 const SCOOTER_YAW := 270.0
 
+# --- Rider --------------------------------------------------------------------
+# A rider sat on the scooter. Loaded at RUNTIME (not preloaded) so the game still
+# runs before the art exists - just drop a rider.glb into models/custom and it
+# appears. Tune the three knobs below once you can see it on the bike:
+#   RIDER_YAW    - turn the rider to face down the road (90 deg steps).
+#   RIDER_HEIGHT - how tall to scale the rider.
+#   RIDER_OFFSET - nudge them onto the seat (y up, z back/forward).
+const RIDER_MODEL_PATH := "res://models/custom/rider.glb"
+const RIDER_YAW := 270.0
+const RIDER_HEIGHT := 1.2
+const RIDER_OFFSET := Vector3(0.0, 0.45, 0.1)
+
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
 var _touch_start_x := 0.0
@@ -59,6 +71,9 @@ func _ready() -> void:
 	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
+	# Sit a rider on the bike, if the art exists yet.
+	_mount_rider()
+
 	# Read the selected scooter's handling so better bikes feel snappier.
 	var scooter := GameData.get_selected_scooter()
 	if scooter:
@@ -70,6 +85,18 @@ func _ready() -> void:
 
 	# Snap to the starting lane immediately.
 	position.x = _current_lane_x()
+
+
+## Load and seat the rider on the scooter. Does nothing (silently) until a
+## rider.glb is added, so the game runs fine without it.
+func _mount_rider() -> void:
+	if not ResourceLoader.exists(RIDER_MODEL_PATH):
+		return
+	var rider_scene: PackedScene = load(RIDER_MODEL_PATH)
+	var rider := ModelUtil.instance_fitted(
+		$Model, rider_scene, Vector3(0.6, RIDER_HEIGHT, 0.6), "height", RIDER_YAW)
+	# Lift/nudge them onto the seat (the model is grounded at y=0 by ModelUtil).
+	rider.position += RIDER_OFFSET
 
 
 ## World X of the lane we're aiming for. Clamps current_lane so a lane that
