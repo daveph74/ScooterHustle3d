@@ -64,3 +64,5 @@ pointing/emulate_touch_from_mouse=true
 ; "mobile" renderer is lighter and targets phones well.
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
+; Android GPUs need ETC2/ASTC compressed textures (fixes the export warning).
+textures/vram_compression/import_etc2_astc=true
