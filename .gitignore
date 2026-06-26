@@ -2,7 +2,9 @@
 .godot/
 .import/
 export.cfg
-export_presets.cfg
+
+# Build output
+build/
 
 # Mono / .NET (unused, but safe to ignore)
 .mono/
