@@ -238,6 +238,13 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 - This is why dropping in any new `.glb` "just works" at the right size.
 
 ### 6.8 Scenery — the "street wall" (`Game._fill_scenery`, `_spawn_scenery`)
+A **raised concrete sidewalk** (`SIDEWALK_WIDTH`) with a **dark kerb lip** at the
+road edge is baked into each road tile down both edges (built in
+`_make_road_segment`, positioned flush to the current section's road edge in
+`_scroll_road`, so it narrows/widens with the road).
+Buildings are set back onto it, bridging the asphalt and the frontage so the
+street reads as one piece instead of buildings floating on grass.
+
 Roadside scenery is built as a **continuous frontage** on each side so the world
 reads as a real street rather than scattered boxes. Instead of a loose spawn
 timer, each side keeps a far-edge cursor (`_wall_z_left/right`); `_fill_side`
@@ -368,6 +375,7 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 | Spawn distance / cull | `SPAWN_Z` / `DESPAWN_Z` |
 | Coin frequency | `coin_interval` |
 | Scenery density / spacing | `SCENERY_GAP` + the type-mix `roll` thresholds in `_spawn_scenery` |
+| Sidewalk width | `SIDEWALK_WIDTH` |
 | Lane debug overlay | `Game.DEBUG_LANES` |
 
 Per-scooter feel: the `.tres` files (`speed`, `handling`). Swipe sensitivity:
