@@ -662,7 +662,7 @@ func _spawn_scenery_at(z: float) -> void:
 	# Push the prop out by its own footprint so its edge always clears the road,
 	# no matter how big the model was scaled or how it was rotated. The road's
 	# width here varies with the lane count, so props hug it as it narrows/widens.
-	var road_edge := road.config_at(distance - z).road_width * 0.5
+	var road_edge: float = road.config_at(distance - z).road_width * 0.5
 	var radius := ModelUtil.footprint_radius(holder)
 	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, z)
 	holder.set_meta("bx", holder.position.x)
