@@ -26,6 +26,7 @@ const SFX := {
 	"click": preload("res://audio/sfx/click.wav"),
 	"powerup": preload("res://audio/sfx/powerup.wav"),
 	"shield": preload("res://audio/sfx/shield.wav"),
+	"scream": preload("res://audio/sfx/scream.wav"),
 }
 
 var _music_player: AudioStreamPlayer

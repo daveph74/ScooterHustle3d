@@ -961,6 +961,7 @@ func _on_player_crashed() -> void:
 	playing = false
 	_add_shake(0.6, 0.6)   # a hard jolt on impact
 	AudioManager.play_sfx("crash")
+	AudioManager.play_sfx("scream")   # the rider yelps as he's flung off
 	combo.on_crash()
 	hud.set_combo(0, 1)
 	hud.hide_pause_button()   # can't pause once the run is over
@@ -975,5 +976,5 @@ func _on_player_crashed() -> void:
 	MissionManager.save_now()
 
 	# Pause so the crash + rider tumble play out, then show the game-over screen.
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(1.2).timeout
 	game_over.show_screen(score, run_coins, GameData.total_coins)

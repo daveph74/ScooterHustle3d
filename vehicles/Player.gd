@@ -213,23 +213,23 @@ func _eject_rider() -> void:
 	if _rider == null:
 		return
 
-	# Where he lands: forward over the handlebars (-z = down the road) with a
-	# little random sideways spray, then back down to the road.
-	var land_x: float = _rider.position.x + randf_range(-1.5, 1.5)
-	var land_z: float = _rider.position.z - 4.0
+	# Where he lands: launched well forward over the handlebars (-z = down the
+	# road) with a random sideways spray, then back down to the road.
+	var land_x: float = _rider.position.x + randf_range(-2.5, 2.5)
+	var land_z: float = _rider.position.z - 9.0
 
-	# Slide forward + sideways and tumble, all in parallel over ~0.9s.
+	# Slide forward + sideways and tumble, all in parallel over ~1.1s.
 	var fling := create_tween()
 	fling.set_parallel(true)
-	fling.tween_property(_rider, "position:x", land_x, 0.9)
-	fling.tween_property(_rider, "position:z", land_z, 0.9) \
+	fling.tween_property(_rider, "position:x", land_x, 1.1)
+	fling.tween_property(_rider, "position:z", land_z, 1.1) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	fling.tween_property(_rider, "rotation:x", _rider.rotation.x + TAU * 1.5, 0.9)
-	fling.tween_property(_rider, "rotation:z", _rider.rotation.z + randf_range(-4.0, 4.0), 0.9)
+	fling.tween_property(_rider, "rotation:x", _rider.rotation.x + TAU * 2.5, 1.1)
+	fling.tween_property(_rider, "rotation:z", _rider.rotation.z + randf_range(-6.0, 6.0), 1.1)
 
-	# A separate up-then-down arc for the height (pop up fast, fall under gravity).
+	# A separate up-then-down arc for the height (pop up high, fall under gravity).
 	var arc := create_tween()
-	arc.tween_property(_rider, "position:y", _rider.position.y + 2.6, 0.35) \
+	arc.tween_property(_rider, "position:y", _rider.position.y + 4.0, 0.45) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	arc.tween_property(_rider, "position:y", 0.05, 0.55) \
+	arc.tween_property(_rider, "position:y", 0.05, 0.65) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
