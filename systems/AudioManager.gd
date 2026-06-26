@@ -10,8 +10,8 @@ extends Node
 # looping is each handled correctly. To add or swap a track, just edit this list
 # and drop the matching file into audio/music/.
 const MUSIC_TRACKS := [
-	{"path": "res://audio/music/track1.mp3", "name": "Track 1"},
-	{"path": "res://audio/music/track2.mp3", "name": "Track 2"},
+	{"path": "res://audio/music/Scooter-Rush.mp3", "name": "Scooter Rush"},
+	{"path": "res://audio/music/Tropical-Rush.mp3", "name": "Tropical Rush"},
 ]
 
 # Filled in _ready from whichever MUSIC_TRACKS files actually exist.
