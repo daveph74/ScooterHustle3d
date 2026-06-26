@@ -55,7 +55,7 @@ const SCOOTER_YAW := 270.0
 #   RIDER_HEIGHT - how tall to scale the rider.
 #   RIDER_OFFSET - nudge them onto the seat (y up, z back/forward).
 const RIDER_MODEL_PATH := "res://models/custom/rider.glb"
-const RIDER_YAW := 270.0
+const RIDER_YAW := 180.0
 const RIDER_HEIGHT := 1.2
 # +z moves him back toward the seat (away from the handlebars); y lifts him.
 const RIDER_OFFSET := Vector3(0.0, 0.32, 0.45)
