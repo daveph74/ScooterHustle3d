@@ -16,6 +16,7 @@ extends Node3D
 const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
 const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
+const PEDESTRIAN_SCRIPT := preload("res://scenes/Pedestrian.gd")
 
 # Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
 # trees are placed off to the sides and scroll past for a sense of a city.
@@ -34,6 +35,10 @@ const TREE_MODELS := [
 # are oriented to FACE THE ROAD so you always see the storefront.
 const LANDMARK_MODELS := [
 	preload("res://models/custom/jollibee.glb"),
+	preload("res://models/custom/church.glb"),
+	preload("res://models/custom/insal.glb"),
+	preload("res://models/custom/petron.glb"),
+	preload("res://models/custom/sari-sari.glb"),
 ]
 # Base yaw so a landmark's front faces the road on the LEFT side; the right side
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.
@@ -98,6 +103,16 @@ const POWERUP_MIN_GAP := 12.0     # power-ups are rare: 12-20s apart
 const POWERUP_MAX_GAP := 20.0
 const POWERUP_KINDS := ["magnet", "shield", "multiplier", "speed"]
 
+# --- Pedestrian crossings -------------------------------------------------
+# People occasionally cross the road on a zebra crossing; the player must dodge
+# them. Like traffic, a crossing NEVER fills the safe lane, so it's always
+# passable. All tuning lives here.
+var crossing_timer := 0.0
+const CROSSING_FIRST_AT := 600.0   # no crossings until this far into the run
+const CROSSING_MIN_GAP := 9.0      # seconds between crossings (early game)
+const CROSSING_MAX_GAP := 16.0
+const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small = fair)
+
 # --- Screen shake ---------------------------------------------------------
 var shake_strength := 0.0
 var shake_time := 0.0
@@ -116,6 +131,7 @@ var _ground_material: StandardMaterial3D
 @onready var sun: DirectionalLight3D = $Sun
 @onready var road_container: Node3D = $RoadContainer
 @onready var traffic_container: Node3D = $TrafficContainer
+@onready var crossing_container: Node3D = $CrossingContainer
 @onready var coin_container: Node3D = $CoinContainer
 @onready var scenery_container: Node3D = $SceneryContainer
 @onready var powerup_container: Node3D = $PowerUpContainer
@@ -205,6 +221,7 @@ func _process(delta: float) -> void:
 	# Each vehicle drives at its own speed, so the player overtakes slower
 	# traffic - that relative motion is what makes traffic look alive.
 	_scroll_traffic(delta)
+	_scroll_crossings(move)
 	_scroll_coins(move)
 	_scroll_scenery(move)
 	_scroll_powerups(move)
@@ -230,6 +247,16 @@ func _process(delta: float) -> void:
 	if powerup_timer <= 0.0:
 		powerup_timer = randf_range(POWERUP_MIN_GAP, POWERUP_MAX_GAP)
 		_spawn_powerup()
+
+	# Pedestrian crossings only start later in the run, then get a touch more
+	# frequent the further you go.
+	if distance >= CROSSING_FIRST_AT:
+		crossing_timer -= delta
+		if crossing_timer <= 0.0:
+			# Ramp the gap down slightly with distance (never below the minimum).
+			var gap := randf_range(CROSSING_MIN_GAP, CROSSING_MAX_GAP)
+			crossing_timer = maxf(CROSSING_MIN_GAP, gap - distance * 0.001)
+			_spawn_crossing()
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
@@ -458,6 +485,72 @@ func _check_near_miss(vehicle: Node3D) -> void:
 		# actually swerved lanes just now. Cruising past traffic no longer fires.
 		if dx > 1.2 and dx < 3.2 and player.recently_changed_lane():
 			_on_near_miss()
+
+
+# ==========================================================================
+#  PEDESTRIAN CROSSINGS
+# ==========================================================================
+
+## Spawn a zebra crossing with a few people walking across it. Like a traffic
+## row it leaves the safe lane clear, so there is always a way through, and it
+## never appears inside a road transition.
+func _spawn_crossing() -> void:
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return   # keep the narrow/widen buffer clear
+	var count: int = cfg.count
+	var positions: Array = cfg.positions
+
+	# Keep the guaranteed-open lane valid for this section's lane count.
+	_safe_lane = clampi(_safe_lane, 0, count - 1)
+
+	# Paint the zebra crossing across the road at this spot (purely visual; it
+	# scrolls with the world via the crossing container).
+	_spawn_zebra(cfg.road_width, SPAWN_Z)
+
+	# A person in every lane EXCEPT the safe one, so the crossing is passable.
+	for lane in range(count):
+		if lane == _safe_lane:
+			continue
+		var ped := PEDESTRIAN_SCRIPT.new()
+		# Set position + base x BEFORE adding to the tree so the pedestrian's
+		# _ready picks up its true spawn lane as the centre of its walk.
+		ped.position = Vector3(positions[lane], 0.0, SPAWN_Z)
+		ped.set_meta("bx", positions[lane])
+		ped.set_meta("by", 0.0)
+		# Stroll slowly left or right (random direction) for a bit of life.
+		ped.walk_speed = CROSSING_WALK_SPEED * (1.0 if randf() < 0.5 else -1.0)
+		traffic_container.add_child(ped)
+
+	# Let the open lane drift by one so consecutive hazards still flow naturally.
+	_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, count - 1)
+
+
+## Build the white zebra stripes spanning the road width at world position z.
+func _spawn_zebra(width: float, z: float) -> void:
+	var holder := Node3D.new()
+	crossing_container.add_child(holder)
+	# Stripes run along the travel direction (Z) and repeat across the road (X).
+	var stripe_count := int(width / 0.7)
+	for i in range(stripe_count):
+		var stripe := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.32, 0.02, 3.4)
+		stripe.mesh = box
+		stripe.material_override = _dash_material
+		stripe.position = Vector3((i - (stripe_count - 1) * 0.5) * 0.7, 0.03, 0.0)
+		holder.add_child(stripe)
+	holder.position = Vector3(0.0, 0.0, z)
+	holder.set_meta("bx", 0.0)
+	holder.set_meta("by", 0.0)
+
+
+func _scroll_crossings(amount: float) -> void:
+	for mark in crossing_container.get_children():
+		mark.position.z += amount
+		_apply_path(mark)
+		if mark.position.z > DESPAWN_Z:
+			mark.queue_free()
 
 
 # ==========================================================================

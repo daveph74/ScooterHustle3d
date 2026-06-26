@@ -87,6 +87,7 @@ res://
 ├── systems/
 │   ├── GameData.gd            AUTOLOAD. Persistent state + save/load (JSON). Scooter catalogue.
 │   ├── AudioManager.gd        AUTOLOAD. Music loops + pooled SFX. Reads/writes settings in GameData.
+│   ├── RoadManager.gd         class_name RoadManager. Single source of truth for lanes/road width (2/3/4-lane sections + transitions). See §6.12.
 │   └── ModelUtil.gd           class_name ModelUtil. Auto-fits imported .glb models to a target size.
 │
 ├── vehicles/
@@ -99,6 +100,7 @@ res://
 │
 ├── scenes/
 │   ├── Coin.tscn / Coin.gd    class_name Coin. Spins, pickup "pop" tween. Signal: collected.
+│   ├── Pedestrian.gd          class_name Pedestrian. Code-built person (Area3D, "traffic" group) for crossings. See §6.13.
 │   └── Game.tscn              The 3D gameplay scene (see node tree below).
 │
 ├── scripts/
@@ -135,9 +137,11 @@ Game (Node3D)                  ← scripts/Game.gd
 ├── WorldEnvironment           procedural sky; fog DISABLED; ambient from sky
 ├── Camera3D                   behind+above; rotation/fov driven by Game.gd
 ├── RoadContainer (Node3D)     holds the 44 recycled road tiles
-├── TrafficContainer (Node3D)  holds spawned TrafficVehicle instances
+├── TrafficContainer (Node3D)  holds spawned TrafficVehicle + Pedestrian instances
+├── CrossingContainer (Node3D) holds zebra-crossing stripe markings
 ├── CoinContainer (Node3D)     holds spawned Coin instances
-├── SceneryContainer (Node3D)  holds buildings/trees
+├── SceneryContainer (Node3D)  holds buildings/trees/landmarks
+├── PowerUpManager / EventManager / PowerUpContainer  (engagement systems, §13)
 ├── Player (instance)          Player.tscn
 ├── HUD (instance)             ui/HUD.tscn
 └── GameOverLayer (instance)   ui/GameOver.tscn
@@ -183,21 +187,22 @@ AudioManager (autoload) persists across scene changes -> music keeps playing.
 ## 6. Key Systems In Detail
 
 ### 6.1 Player (`vehicles/Player.gd`)
-- 3 lanes; `current_lane` 0/1/2 starting at 1 (middle). `_lane_to_x(l) = (l-1)*2.5`.
+- **Dynamic lanes** (no fixed lane count). `lane_positions: Array` holds the world X of each lane centre on the CURRENT road section; `Game` pushes it every frame via `player.set_lanes(...)` from `RoadManager.config_at(distance).positions` (see §6.12). `current_lane` is an INDEX into that array, starting at 1.
+- `_current_lane_x()` **clamps** `current_lane` to the array size, so when the road narrows and a lane vanishes, the player resolves to the nearest valid lane and the position lerp **slides them there smoothly — never an instant death.**
 - Smoothly lerps `position.x` to the target lane; `lane_change_speed = 7.0 * scooter.handling`.
 - **Keyboard:** `Input.is_action_just_pressed("move_left"/"move_right")`.
 - **Touch:** `_unhandled_input` tracks a screen touch; a drag of > `SWIPE_MIN_PIXELS` (40px) triggers one lane change (one lane per swipe). Mouse→touch emulation is on in `project.godot`, so click-drag works on desktop.
-- Visual model: Kenney motorcycle via `ModelUtil.instance_fitted`. `SCOOTER_FACES_BACK = true` (already corrected for this model).
+- Visual model: custom Meshy scooter (`models/custom/scooter.glb`) via `ModelUtil.instance_fitted`, oriented with `SCOOTER_YAW = 270.0`.
 
 ### 6.2 Traffic & the "always passable" guarantee (`Game.gd` + `TrafficVehicle.gd`)
 This is the most important gameplay-correctness system.
 
 - **All traffic shares ONE speed**: `drive_speed = TRAFFIC_SPEED_FRACTION (0.45) * base_speed`. Uniform speed means vehicles keep formation and can **never drift into an impossible 3-lane wall**. Each is scrolled by `(speed - drive_speed) * delta`, so the faster player always overtakes traffic.
-- Traffic spawns in **rows** (`_spawn_traffic_at`). A row never blocks all three lanes — the current `_safe_lane` is always left open.
-- Early game: a row blocks only one of the two non-safe lanes (2 lanes open). After `elapsed > 20s`, a row may block **both** non-safe lanes (only the safe lane open).
-- `_safe_lane` drifts by at most **±1 lane, and only on easy (2-open) rows**, so the player can always follow the open path with single swipes and is never forced through a tight diagonal.
+- Traffic spawns in **rows** (`_spawn_traffic_at`), generalised to the section's lane `count` (see §6.12). A row never blocks all lanes — the current `_safe_lane` is always left open. Rows **never spawn inside a transition** (`cfg.is_transition` → skip).
+- 2-lane sections only ever block ONE lane (the other stays open). On 3+ lanes, after `elapsed > 20s`, a row may block **all** non-safe lanes (only the safe lane open).
+- `_safe_lane` drifts by at most **±1 lane**, clamped to the current count, so the player can always follow the open path with single swipes and is never forced through a tight diagonal.
 - Coin lines spawn **in the safe lane**, gently guiding the player along the open path.
-- `TrafficVehicle.setup(type)` swaps the box for a Kenney truck model (jeepney=green, bus=red, car=yellow) or builds a **procedural tricycle** (motorbike + sidecar; no off-the-shelf model). `TRAFFIC_FACES_BACK = true`.
+- `TrafficVehicle.setup(type)` drops in a custom Meshy model per type (jeepney/bus/car=taxi/tricycle), each oriented with `yaw = 270.0`, auto-fitted to its `bounds`.
 - Vehicle collision box = a per-type `bounds` Vector3 (used regardless of the visual model's exact size).
 
 ### 6.3 Coins (`scenes/Coin.gd`)
@@ -236,7 +241,12 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 Buildings (height 7–16) and tree clumps (height 3–5) from the Kenney City Kit,
 placed on alternating sides at `road_edge + gap + footprint_radius`, random yaw,
 scrolled and recycled like everything else, and displaced by the same path so
-they ride the hills/bends.
+they ride the hills/bends. **`road_edge` is read from `RoadManager.config_at(...)`
+each spawn, so props hug the road as it narrows/widens.**
+**Landmarks** (`LANDMARK_MODELS` — custom Meshy `jollibee`/`church`/`insal`/`petron`/
+`sari-sari`) spawn ~18% of the time and, unlike generic buildings, are **oriented
+to face the road** (base `LANDMARK_YAW`, auto-flipped 180° on the right side) so
+you always see the storefront.
 
 ### 6.9 Audio (`systems/AudioManager.gd`)
 - Autoload, persists across scenes, so music is continuous.
@@ -258,6 +268,75 @@ A top-right pause button (large tap target) and a full-screen pause overlay
 freeze. Escape toggles pause on desktop; `hud.hide_pause_button()` is called on
 Game Over so a finished run can't be paused.
 
+### 6.12 Dynamic road sections (`systems/RoadManager.gd`)
+The road changes lane count over time — normal **3-lane**, narrower **2-lane**,
+wider **4-lane** — with smooth, fair transitions, **without** touching the
+treadmill or the left/right controls. `RoadManager` (a `RefCounted` owned by
+`Game`) is the single source of truth for "what lanes exist at a point on the road".
+
+- **Tied to world position, not nodes.** Lane layout is a function of `distance`
+  (metres travelled). An object spawned at world `W` keeps `W` as it scrolls, so
+  its lanes never change mid-flight and automatically match the player (always at
+  `world = distance`) when they meet. Everything just asks `config_at(world)`.
+- **Schedule of sections.** `_sections` is a list of `{start, end, count, kind,
+  from_count, to_count}` where `kind` is `"road"` or `"transition"`. `update(distance)`
+  (called each frame) lazily appends sections out to `distance + 220` and prunes
+  ones well behind the player. `_pick_next_count()` chooses the next count by
+  distance (difficulty); whenever the count changes a short **`TRANSITION_LEN`
+  (14 m) transition** section is inserted first.
+- **`config_at(world) → {count, positions, dividers, road_width, is_transition,
+  blend, kind}`.** On a road section these are that count's values. On a transition
+  the `count`/`positions` are the UPCOMING section's (so the player pre-aligns to
+  the new lanes) while `road_width` **lerps** from old→new for the visible
+  narrow/widen.
+- **Pure lane math (works for any count):** `lane_positions(n)` centres lanes at
+  `(i-(n-1)/2)*LANE_WIDTH`; `road_width(n) = n*LANE_WIDTH + 2*SHOULDER`;
+  `divider_positions(n)` gives the `n-1` dividers.
+
+**How Game uses it (`scripts/Game.gd`):**
+- **Player feed:** each frame `player.set_lanes(road.config_at(distance).positions)`.
+- **Road tiles:** built once at `MAX_ROAD_WIDTH` (4 lanes) with 3 divider dashes.
+  `_scroll_road` scales each tile's asphalt to `cfg.road_width / MAX_ROAD_WIDTH`
+  and shows/positions `cfg.count-1` dashes — a cheap transform-only narrow/widen
+  with markings merging (no mesh rebuilds).
+- **Spawners** (`_spawn_traffic_at`, `_spawn_coin_line`, `_spawn_powerup`): read
+  `cfg = config_at(distance - SPAWN_Z)`; **if `cfg.is_transition` they skip
+  spawning** (the buffer zone is the obstacle-free warning), else they use
+  `cfg.count`/`cfg.positions` and clamp `_safe_lane` to the count. On a 2-lane
+  section only one lane is ever blocked, so the safe lane is always open.
+- **Adding a new road type:** return its lane count from `_pick_next_count()` —
+  `lane_positions`/`road_width`/`divider_positions` handle any count for free.
+- **Difficulty** (all constants at the top of `RoadManager`): `ALL_3_UNTIL = 400`
+  (only 3-lane before this), 2-lane sections appear after that, `ALLOW_4_AFTER =
+  1000` gates the occasional wide 4-lane section; `SECTION_MIN/MAX` set section
+  length. Always keep the `TRANSITION_LEN` buffer when changing count.
+- **Debug:** `Game.DEBUG_LANES = true` pushes a HUD line (`hud.set_debug`) showing
+  lane count, section kind and positions. Off by default (the label is lazily
+  created, so it costs nothing when off).
+
+### 6.13 Pedestrian crossings (`scenes/Pedestrian.gd`, `Game._spawn_crossing`)
+Occasionally people cross the road on a zebra crossing and the player must dodge
+them. Built to **reuse the existing hazard pipeline** and **respect the safe-lane
+guarantee**.
+
+- `Pedestrian` is an **`Area3D`** built entirely in code (capsule body + sphere
+  head, like the power-ups), in group **`"traffic"`** on **collision layer 2** —
+  so the Player's existing `_on_area_entered` treats hitting one as a crash (a
+  shield absorbs it) with **zero new collision code**. `drive_speed = 0`, so it
+  rides `_scroll_traffic` and approaches at the full scroll speed like a parked
+  obstacle.
+- `_spawn_crossing()` (timer-driven): reads `config_at(distance - SPAWN_Z)`,
+  **skips if it's a transition**, paints a **zebra crossing** (`_spawn_zebra` —
+  white stripes in `CrossingContainer`, scrolled by `_scroll_crossings`), and
+  drops a pedestrian in **every lane except `_safe_lane`** — so there is always a
+  clear lane through.
+- Each pedestrian does a **slow lateral pace** (`walk_speed`, clamped to
+  `WALK_RANGE = 0.8` around its spawn lane so it never wanders into the safe
+  lane) plus a small walk bob.
+- **Difficulty:** crossings only start after `CROSSING_FIRST_AT = 600` m and get a
+  touch more frequent with distance (`CROSSING_MIN/MAX_GAP`). All knobs are
+  constants in `Game.gd`.
+
 ---
 
 ## 7. Tuning Knobs (where to change "feel")
@@ -266,16 +345,20 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 
 | Want to change | Edit |
 |---|---|
-| Lane spacing | `LANE_WIDTH` (also in `Player.gd` — keep equal!) |
+| Lane spacing | `RoadManager.LANE_WIDTH` (single source of truth — Player reads lanes from it) |
+| When lanes change (2/3/4) | `RoadManager` `ALL_3_UNTIL` / `ALLOW_4_AFTER` / `SECTION_MIN/MAX` / `_pick_next_count` |
+| Transition (narrow/widen) length | `RoadManager.TRANSITION_LEN` |
 | Speed / difficulty | `base_speed` formula, `MAX_SPEED`, the `elapsed*` ramp coefficients |
-| How aggressive traffic is | `traffic_interval` floor, the `elapsed > 20` / `randf() < 0.5` two-lane gate |
+| How aggressive traffic is | `traffic_interval` floor, the `elapsed > 20` / `randf() < 0.5` block-all gate |
 | Traffic relative speed | `TRAFFIC_SPEED_FRACTION` |
+| Pedestrian crossings | `CROSSING_FIRST_AT` / `CROSSING_MIN/MAX_GAP` / `CROSSING_WALK_SPEED` (Game.gd) |
 | Hill/bend strength | amplitudes in `_path_x` / `_path_y` |
 | Hill/bend direction | `HILL_DIR` / `BEND_DIR` (1.0 ↔ -1.0) |
 | Road smoothness | `SEGMENT_LENGTH` (smaller = smoother, more nodes) / `SEGMENT_COUNT` |
 | Spawn distance / cull | `SPAWN_Z` / `DESPAWN_Z` |
 | Coin frequency | `coin_interval` |
 | Scenery density | `scenery_interval` |
+| Lane debug overlay | `Game.DEBUG_LANES` |
 
 Per-scooter feel: the `.tres` files (`speed`, `handling`). Swipe sensitivity:
 `SWIPE_MIN_PIXELS` in `Player.gd`. Audio volumes: `volume_db` in `AudioManager.gd`.
