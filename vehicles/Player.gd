@@ -59,6 +59,9 @@ const RIDER_YAW := 180.0
 const RIDER_HEIGHT := 1.2
 # +z moves him back toward the seat (away from the handlebars); y lifts him.
 const RIDER_OFFSET := Vector3(0.0, 0.32, 0.45)
+# The mounted rider model (null until a rider.glb exists). Kept so we can fling
+# it off the bike on a crash.
+var _rider: Node3D
 
 # --- Swipe detection ------------------------------------------------------
 var _touching := false
@@ -98,6 +101,7 @@ func _mount_rider() -> void:
 		$Model, rider_scene, Vector3(0.6, RIDER_HEIGHT, 0.6), "height", RIDER_YAW)
 	# Lift/nudge them onto the seat (the model is grounded at y=0 by ModelUtil).
 	rider.position += RIDER_OFFSET
+	_rider = rider
 
 
 ## World X of the lane we're aiming for. Clamps current_lane so a lane that
@@ -200,4 +204,32 @@ func _on_area_entered(area: Area3D) -> void:
 
 func _die() -> void:
 	alive = false
+	_eject_rider()
 	crashed.emit()
+
+
+## Fling the rider off the bike in a tumbling arc on a crash (purely visual).
+func _eject_rider() -> void:
+	if _rider == null:
+		return
+
+	# Where he lands: forward over the handlebars (-z = down the road) with a
+	# little random sideways spray, then back down to the road.
+	var land_x: float = _rider.position.x + randf_range(-1.5, 1.5)
+	var land_z: float = _rider.position.z - 4.0
+
+	# Slide forward + sideways and tumble, all in parallel over ~0.9s.
+	var fling := create_tween()
+	fling.set_parallel(true)
+	fling.tween_property(_rider, "position:x", land_x, 0.9)
+	fling.tween_property(_rider, "position:z", land_z, 0.9) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	fling.tween_property(_rider, "rotation:x", _rider.rotation.x + TAU * 1.5, 0.9)
+	fling.tween_property(_rider, "rotation:z", _rider.rotation.z + randf_range(-4.0, 4.0), 0.9)
+
+	# A separate up-then-down arc for the height (pop up fast, fall under gravity).
+	var arc := create_tween()
+	arc.tween_property(_rider, "position:y", _rider.position.y + 2.6, 0.35) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	arc.tween_property(_rider, "position:y", 0.05, 0.55) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)

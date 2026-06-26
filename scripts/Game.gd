@@ -974,6 +974,6 @@ func _on_player_crashed() -> void:
 	MissionManager.report("runs", 1)
 	MissionManager.save_now()
 
-	# Small pause so the crash registers, then show the game-over screen.
-	await get_tree().create_timer(0.7).timeout
+	# Pause so the crash + rider tumble play out, then show the game-over screen.
+	await get_tree().create_timer(1.0).timeout
 	game_over.show_screen(score, run_coins, GameData.total_coins)
