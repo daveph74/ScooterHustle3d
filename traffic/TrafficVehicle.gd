@@ -15,19 +15,19 @@ class_name TrafficVehicle
 const TYPES := {
 	"jeepney": {
 		"model": preload("res://models/custom/jeepney.glb"),
-		"bounds": Vector3(1.7, 1.7, 3.8), "yaw": 90.0,
+		"bounds": Vector3(1.7, 1.7, 3.8), "yaw": 270.0,
 	},
 	"bus": {
 		"model": preload("res://models/custom/bus.glb"),
-		"bounds": Vector3(1.9, 2.2, 5.2), "yaw": 90.0,
+		"bounds": Vector3(1.9, 2.2, 5.2), "yaw": 270.0,
 	},
 	"car": {
 		"model": preload("res://models/custom/taxi.glb"),
-		"bounds": Vector3(1.5, 1.4, 2.6), "yaw": 90.0,
+		"bounds": Vector3(1.5, 1.4, 2.6), "yaw": 270.0,
 	},
 	"tricycle": {
 		"model": preload("res://models/custom/tricycle.glb"),
-		"bounds": Vector3(1.5, 1.4, 2.0), "yaw": 90.0,
+		"bounds": Vector3(1.5, 1.4, 2.0), "yaw": 270.0,
 	},
 }
 
