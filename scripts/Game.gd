@@ -28,8 +28,6 @@ const BUILDING_MODELS := [
 	preload("res://models/city/building-garage.glb"),
 ]
 const TREE_MODELS := [
-	preload("res://models/city/grass-trees.glb"),
-	preload("res://models/city/grass-trees-tall.glb"),
 	preload("res://models/custom/palm-tree.glb"),
 ]
 # Recognisable landmarks (custom Meshy models). Unlike generic buildings these
