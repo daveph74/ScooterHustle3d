@@ -64,7 +64,7 @@ func _ready() -> void:
 	_enable_loop(ENGINE_STREAM)
 	_engine_player = AudioStreamPlayer.new()
 	_engine_player.stream = ENGINE_STREAM
-	_engine_player.volume_db = -13.0
+	_engine_player.volume_db = -19.0   # -6 dB below the old -13 = ~50% quieter
 	_engine_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_engine_player)
 
