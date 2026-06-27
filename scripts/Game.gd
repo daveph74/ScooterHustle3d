@@ -859,7 +859,7 @@ func _scroll_crossings(amount: float) -> void:
 		# off at the ends. (Set via a "tilt_len" meta = the surface's length.)
 		var tl: float = mark.get_meta("tilt_len", 0.0)
 		if tl > 0.0:
-			var c := mark.position.z
+			var c: float = mark.position.z
 			var half := tl * 0.5
 			var near := _path_offset(c + half)
 			var far := _path_offset(c - half)
