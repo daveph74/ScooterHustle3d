@@ -148,7 +148,7 @@ var _closure_until := 0.0          # distance at which the closure has fully pas
 const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
 const CLOSURE_MIN_GAP := 11.0      # seconds between closures
 const CLOSURE_MAX_GAP := 20.0
-const CLOSURE_LENGTH := 36.0       # how long the dug-up stretch is (metres)
+const CLOSURE_LENGTH := 20.0       # how long the dug-up stretch is (metres)
 var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
 
 # --- Camera & shake tuning -----------------------------------------------
@@ -854,8 +854,19 @@ func _scroll_crossings(amount: float) -> void:
 	for mark in crossing_container.get_children():
 		mark.position.z += amount
 		_apply_path(mark)
-		# Long surfaces (the construction patch) set a bigger despawn_z so they
-		# don't vanish while a chunk is still in view.
+		# Long flat surfaces (the construction patch) pitch/yaw to the road's
+		# slope at their position so they hug the hills/bends instead of lifting
+		# off at the ends. (Set via a "tilt_len" meta = the surface's length.)
+		var tl: float = mark.get_meta("tilt_len", 0.0)
+		if tl > 0.0:
+			var c := mark.position.z
+			var half := tl * 0.5
+			var near := _path_offset(c + half)
+			var far := _path_offset(c - half)
+			mark.rotation.x = atan2(far.y - near.y, tl)
+			mark.rotation.y = atan2(near.x - far.x, tl)
+		# Long surfaces set a bigger despawn_z so they don't vanish while a chunk
+		# is still in view.
 		var dz: float = mark.get_meta("despawn_z", DESPAWN_Z)
 		if mark.position.z > dz:
 			mark.queue_free()
@@ -897,6 +908,10 @@ func _spawn_lane_closure() -> void:
 		if v is TrafficVehicle and v.position.z <= wall_z + 8.0 \
 				and absf(v.get_meta("bx", 999.0) - lane_x) < 1.0:
 			v.queue_free()
+	# Same for coins already in the closing lane, so none sit on the dirt.
+	for c in coin_container.get_children():
+		if c.position.z <= wall_z + 8.0 and absf(c.get_meta("bx", 999.0) - lane_x) < 1.0:
+			c.queue_free()
 
 	# Torn-up "under construction" dirt road filling the closed lane behind the
 	# barrier (visual only; scrolls with the world via crossing_container).
@@ -910,6 +925,7 @@ func _spawn_lane_closure() -> void:
 	surf.set_meta("bx", lane_x)
 	surf.set_meta("by", 0.013)
 	surf.set_meta("despawn_z", DESPAWN_Z + CLOSURE_LENGTH * 0.5 + 4.0)
+	surf.set_meta("tilt_len", CLOSURE_LENGTH)   # hug the road's slope
 
 	# The barrier wall that ends the lane (collider spans the lane - no squeezing
 	# past). It's a normal "traffic" obstacle, so hitting it crashes you.
