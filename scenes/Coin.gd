@@ -33,6 +33,9 @@ func _ready() -> void:
 			self, load(COIN_MODEL_PATH), Vector3(COIN_SIZE, COIN_SIZE, COIN_SIZE),
 			"height", COIN_YAW)
 		holder.rotation_degrees.x = COIN_PITCH
+		# ModelUtil grounds the model (bottom at y=0); pull it down half its
+		# height so it CENTRES on the spawn point and hovers just above the road.
+		holder.position.y = -COIN_SIZE * 0.5
 	else:
 		# Fallback: procedural shiny gold disc, stood up so the Y-spin "flips".
 		$Mesh.rotation_degrees = Vector3(90, 0, 0)
