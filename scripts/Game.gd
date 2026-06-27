@@ -44,6 +44,10 @@ const LANDMARK_MODELS := [
 	preload("res://models/custom/chowking.glb"),
 	preload("res://models/custom/lto.glb"),
 ]
+# Existing models repurposed as decorative ambient life on the sidewalk.
+const PARKED_SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
+const PARKED_JEEPNEY_MODEL := preload("res://models/custom/jeepney.glb")
+const AMBIENT_PERSON_MODEL  := preload("res://models/custom/man.glb")
 # Base yaw so a landmark's front faces the road on the LEFT side; the right side
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.
 const LANDMARK_YAW := 0.0
@@ -53,6 +57,7 @@ const LANDMARK_YAW := 0.0
 # dividers at any point on the road. Everything below asks road.config_at(world).
 var road := RoadManager.new()
 var districts := Districts.new()
+var _prop_factory := PropFactory.new()
 const MAX_ROAD_WIDTH := 11.5   # 4 lanes*2.5 + 2*0.75 shoulder; tiles are built this wide and scaled down per section
 const SIDEWALK_WIDTH := 2.6    # raised concrete pavement along each road edge (buildings sit on it)
 const DEBUG_LANES := false     # set true to show lane count / section type on the HUD
@@ -388,6 +393,27 @@ func _make_road_segment() -> Node3D:
 		dashes.append(dash)
 	segment.set_meta("dashes", dashes)
 
+	# Lamp posts — one per side, flushed to the road edge in _scroll_road.
+	var lamp_posts: Array = []
+	for s in [-1.0, 1.0]:
+		var lp := _prop_factory.make("lamp-post", segment)
+		lp.set_meta("side", s)
+		lamp_posts.append(lp)
+	segment.set_meta("lamp_posts", lamp_posts)
+
+	# Random sidewalk clutter (bench / bin / pot / cone — 0 or 1 per tile side).
+	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone"]
+	for s in [-1.0, 1.0]:
+		if randi() % 3 == 0:   # ~33% chance each side
+			var key := clutter_keys[randi() % clutter_keys.size()]
+			var prop := _prop_factory.make(key, segment)
+			prop.set_meta("side", s)
+			# Position along the tile (random z within the tile, on the sidewalk).
+			prop.position.z = randf_range(-SEGMENT_LENGTH * 0.35, SEGMENT_LENGTH * 0.35)
+			# X will be updated in _scroll_road like the sidewalks. Store base offset.
+			prop.set_meta("sidewalk_prop", true)
+			prop.set_meta("sidewalk_offset", randf_range(0.3, SIDEWALK_WIDTH - 0.5))
+
 	return segment
 
 
@@ -429,6 +455,21 @@ func _scroll_road(amount: float) -> void:
 		for curb in curbs:
 			var csgn: float = curb.get_meta("side")
 			curb.position = Vector3(csgn * road_edge, 0.06, 0.0)
+
+		# Keep lamp posts at the outer edge of the sidewalk.
+		var lamp_posts_arr: Array = segment.get_meta("lamp_posts", [])
+		for lp in lamp_posts_arr:
+			var lp_sgn: float = lp.get_meta("side")
+			lp.position.x = lp_sgn * (road_edge + SIDEWALK_WIDTH * 0.85)
+			lp.position.y = 0.0
+
+		# Keep sidewalk clutter props on the sidewalk.
+		for child in segment.get_children():
+			if child.has_meta("sidewalk_prop"):
+				var sp_sgn: float = child.get_meta("side")
+				var sp_off: float = child.get_meta("sidewalk_offset")
+				child.position.x = sp_sgn * (road_edge + sp_off)
+				child.position.y = 0.0
 
 		var dashes: Array = segment.get_meta("dashes")
 		var dividers: Array = cfg.dividers
@@ -801,6 +842,28 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 	holder.position = Vector3(side * (road_edge + gap + radius), 0.0, center_z)
 	holder.set_meta("bx", holder.position.x)
 	holder.set_meta("by", 0.0)
+
+	# Occasionally park a scooter or jeepney alongside buildings (not trees).
+	if faces_road and randf() < 0.18:
+		var ambient_model: PackedScene
+		var r2 := randf()
+		if r2 < 0.5:
+			ambient_model = PARKED_SCOOTER_MODEL
+		elif r2 < 0.75:
+			ambient_model = PARKED_JEEPNEY_MODEL
+		else:
+			ambient_model = AMBIENT_PERSON_MODEL
+		var ambient := ModelUtil.instance_fitted(scenery_container, ambient_model,
+			Vector3(2, 1.8, 2), "height", 0.0)
+		# Place beside the main prop, slightly closer to the road.
+		ambient.position = Vector3(
+			side * (road_edge + gap * 0.6 + randf_range(0.2, 0.8)),
+			0.0, center_z + randf_range(-depth * 0.3, depth * 0.3))
+		ambient.set_meta("bx", ambient.position.x)
+		ambient.set_meta("by", 0.0)
+		# Face the road (random slight variation).
+		var af := 0.0 if side < 0.0 else 180.0
+		ambient.rotation_degrees.y = af + randf_range(-15.0, 15.0)
 
 	return wall_z - depth - SCENERY_GAP
 
