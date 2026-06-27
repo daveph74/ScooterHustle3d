@@ -148,6 +148,8 @@ var _closure_until := 0.0          # distance at which the closure has fully pas
 const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
 const CLOSURE_MIN_GAP := 11.0      # seconds between closures
 const CLOSURE_MAX_GAP := 20.0
+const CLOSURE_LENGTH := 36.0       # how long the dug-up stretch is (metres)
+var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
 
 # --- Camera & shake tuning -----------------------------------------------
 # Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
@@ -852,7 +854,10 @@ func _scroll_crossings(amount: float) -> void:
 	for mark in crossing_container.get_children():
 		mark.position.z += amount
 		_apply_path(mark)
-		if mark.position.z > DESPAWN_Z:
+		# Long surfaces (the construction patch) set a bigger despawn_z so they
+		# don't vanish while a chunk is still in view.
+		var dz: float = mark.get_meta("despawn_z", DESPAWN_Z)
+		if mark.position.z > dz:
 			mark.queue_free()
 
 
@@ -879,25 +884,53 @@ func _spawn_lane_closure() -> void:
 	_safe_lane = 1
 	_closure_until = distance + 210.0   # ~a full SPAWN_Z -> DESPAWN_Z pass
 	var lane_x: float = positions[_closed_lane]
+	var lane_w: float = RoadManager.LANE_WIDTH
 
-	# Cone runway leading up to the wall. These sit nearer the player than the
-	# wall, so they're reached first and act as the warning.
-	for i in range(7):
-		var cone := OBSTACLE_SCRIPT.new()
-		cone.setup(_prop_factory, "traffic-cone", Vector3(0.45, 0.9, 0.45))
-		traffic_container.add_child(cone)
-		cone.position = Vector3(lane_x, 0.0, SPAWN_Z + 10.0 + i * 5.0)
-		cone.set_meta("bx", lane_x)
-		cone.set_meta("by", 0.0)
+	# The barrier wall faces the player at the NEAR end of the closure (reached
+	# first); the dug-up road stretches behind it toward the horizon.
+	var wall_z := SPAWN_Z + CLOSURE_LENGTH
 
-	# The barrier wall that actually ends the lane (reached last). Its collider
-	# spans the whole lane so you can't squeeze past.
+	# Torn-up "under construction" dirt road filling the closed lane behind the
+	# barrier (visual only; scrolls with the world via crossing_container).
+	var surf := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(lane_w * 0.92, CLOSURE_LENGTH)
+	surf.mesh = pm
+	surf.material_override = _get_construction_material()
+	crossing_container.add_child(surf)
+	surf.position = Vector3(lane_x, 0.013, SPAWN_Z + CLOSURE_LENGTH * 0.5)
+	surf.set_meta("bx", lane_x)
+	surf.set_meta("by", 0.013)
+	surf.set_meta("despawn_z", DESPAWN_Z + CLOSURE_LENGTH * 0.5 + 4.0)
+
+	# The barrier wall that ends the lane (collider spans the lane - no squeezing
+	# past). It's a normal "traffic" obstacle, so hitting it crashes you.
 	var wall := OBSTACLE_SCRIPT.new()
-	wall.setup(_prop_factory, "construction-barrier", Vector3(RoadManager.LANE_WIDTH, 1.0, 0.6))
+	wall.setup(_prop_factory, "construction-barrier", Vector3(lane_w, 1.0, 0.6))
 	traffic_container.add_child(wall)
-	wall.position = Vector3(lane_x, 0.0, SPAWN_Z)
+	wall.position = Vector3(lane_x, 0.0, wall_z)
 	wall.set_meta("bx", lane_x)
 	wall.set_meta("by", 0.0)
+
+	# A couple more barriers lining the dug-up stretch behind the wall for the
+	# construction-zone look (the player never reaches them - they merge first).
+	for i in range(2):
+		var b := OBSTACLE_SCRIPT.new()
+		b.setup(_prop_factory, "construction-barrier", Vector3(lane_w * 0.9, 1.0, 0.6))
+		traffic_container.add_child(b)
+		var bz := wall_z - 12.0 - i * 12.0
+		b.position = Vector3(lane_x, 0.0, bz)
+		b.set_meta("bx", lane_x)
+		b.set_meta("by", 0.0)
+
+
+## Dirt/rubble surface for a closed (under-construction) lane. Built once.
+func _get_construction_material() -> StandardMaterial3D:
+	if _construction_material == null:
+		_construction_material = StandardMaterial3D.new()
+		_construction_material.albedo_color = Color(0.42, 0.32, 0.18)  # dirt brown
+		_construction_material.roughness = 1.0
+	return _construction_material
 
 
 # ==========================================================================
