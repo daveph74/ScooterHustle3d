@@ -74,16 +74,12 @@ func _last_road_count() -> int:
 	return 3
 
 
-## Choose the next section's lane count based on how far in we are.
-func _pick_next_count(start: float) -> int:
-	if start < ALL_3_UNTIL:
-		return 3
-	var r := _rng.randf()
-	if start >= ALLOW_4_AFTER and r < 0.18:
-		return 4          # occasional wide section, later in the run
-	if r < 0.5:
-		return 2          # narrow section
-	return 3              # back to normal
+## Choose the next section's lane count. The road is kept at a FIXED 3 lanes -
+## instead of changing width, lanes are "closed" with construction barriers in
+## Game.gd (an outer lane ends and you must merge). Return a varying count here
+## to bring dynamic 2/4-lane sections back.
+func _pick_next_count(_start: float) -> int:
+	return 3
 
 
 func _append_section() -> void:

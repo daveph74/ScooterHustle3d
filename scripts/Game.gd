@@ -17,6 +17,7 @@ const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
 const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
 const PEDESTRIAN_SCRIPT := preload("res://scenes/Pedestrian.gd")
+const OBSTACLE_SCRIPT := preload("res://scenes/Obstacle.gd")
 const SPEED_LINES_SCRIPT := preload("res://ui/SpeedLines.gd")
 const WIND_SHADER: Shader = preload("res://shaders/wind.gdshader")
 
@@ -136,6 +137,17 @@ const CROSSING_FIRST_AT := 600.0   # no crossings until this far into the run
 const CROSSING_MIN_GAP := 9.0      # seconds between crossings (early game)
 const CROSSING_MAX_GAP := 16.0
 const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small = fair)
+
+# --- Lane closures (PH "the outer lane just ends, merge or crash") ----------
+# A run of cones funnels into a construction-barrier wall blocking ONE outer
+# lane; the player must merge inward. The centre lane is forced open for the
+# duration so the road is always passable.
+var closure_timer := 0.0
+var _closed_lane := -1             # outer lane currently closed (-1 = none)
+var _closure_until := 0.0          # distance at which the closure has fully passed
+const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
+const CLOSURE_MIN_GAP := 11.0      # seconds between closures
+const CLOSURE_MAX_GAP := 20.0
 
 # --- Camera & shake tuning -----------------------------------------------
 # Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
@@ -311,6 +323,15 @@ func _process(delta: float) -> void:
 			var gap := randf_range(CROSSING_MIN_GAP, CROSSING_MAX_GAP)
 			crossing_timer = maxf(CROSSING_MIN_GAP, gap - distance * 0.001)
 			_spawn_crossing()
+
+	# Lane closures: an outer lane ends behind a barrier, merge or crash.
+	if _closed_lane >= 0 and distance > _closure_until:
+		_closed_lane = -1   # the closure has fully scrolled past; reopen the lane
+	if distance >= CLOSURE_FIRST_AT and _closed_lane < 0:
+		closure_timer -= delta
+		if closure_timer <= 0.0:
+			closure_timer = randf_range(CLOSURE_MIN_GAP, CLOSURE_MAX_GAP)
+			_spawn_lane_closure()
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
@@ -643,14 +664,21 @@ func _spawn_traffic_at(z: float) -> void:
 	var positions: Array = cfg.positions
 	var types := ["jeepney", "tricycle", "bus", "car"]
 
-	# Keep the safe lane valid for this section's lane count.
-	_safe_lane = clampi(_safe_lane, 0, count - 1)
+	# During a lane closure the centre lane is the guaranteed-open path, and we
+	# never spawn traffic in the closed (barriered) lane.
+	var closure_active := _closed_lane >= 0 and _closed_lane < count
+	if closure_active:
+		_safe_lane = 1
+	else:
+		_safe_lane = clampi(_safe_lane, 0, count - 1)
 
-	# Lanes that are not the guaranteed-open one.
+	# Lanes that are neither the guaranteed-open one nor the closed lane.
 	var other_lanes: Array = []
 	for lane in range(count):
-		if lane != _safe_lane:
+		if lane != _safe_lane and lane != _closed_lane:
 			other_lanes.append(lane)
+	if other_lanes.is_empty():
+		return   # nothing left to block (the safe lane stays open)
 
 	# On a 2-lane road only ever block ONE lane (the other stays open). On wider
 	# roads, later in the run, sometimes block ALL non-safe lanes. The safe lane
@@ -673,8 +701,9 @@ func _spawn_traffic_at(z: float) -> void:
 		vehicle.drive_speed = traffic_speed
 
 	# Shift the open lane by at most one, only when more than one lane is open,
-	# so the player can always follow it with a single swipe.
-	if not block_all:
+	# so the player can always follow it with a single swipe. (Pinned to centre
+	# during a closure.)
+	if not block_all and not closure_active:
 		_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, count - 1)
 
 
@@ -825,6 +854,50 @@ func _scroll_crossings(amount: float) -> void:
 		_apply_path(mark)
 		if mark.position.z > DESPAWN_Z:
 			mark.queue_free()
+
+
+# ==========================================================================
+#  LANE CLOSURES  ("the outer lane just ends - merge or crash")
+# ==========================================================================
+
+## Close one OUTER lane: a run of cones funnels into a construction-barrier wall
+## that blocks the lane. The player must merge inward before reaching the wall.
+## The centre lane is forced open for the whole closure, so it's always passable.
+## The cone/barrier obstacles live in traffic_container (so they scroll, collide
+## and despawn like traffic) and are static (drive_speed 0).
+func _spawn_lane_closure() -> void:
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return
+	var count: int = cfg.count
+	if count < 3:
+		return   # need a spare outer lane to close while keeping the road open
+	var positions: Array = cfg.positions
+
+	# Pick an outer lane (leftmost or rightmost) and pin the centre lane open.
+	_closed_lane = 0 if randf() < 0.5 else count - 1
+	_safe_lane = 1
+	_closure_until = distance + 210.0   # ~a full SPAWN_Z -> DESPAWN_Z pass
+	var lane_x: float = positions[_closed_lane]
+
+	# Cone runway leading up to the wall. These sit nearer the player than the
+	# wall, so they're reached first and act as the warning.
+	for i in range(7):
+		var cone := OBSTACLE_SCRIPT.new()
+		cone.setup(_prop_factory, "traffic-cone", Vector3(0.45, 0.9, 0.45))
+		traffic_container.add_child(cone)
+		cone.position = Vector3(lane_x, 0.0, SPAWN_Z + 10.0 + i * 5.0)
+		cone.set_meta("bx", lane_x)
+		cone.set_meta("by", 0.0)
+
+	# The barrier wall that actually ends the lane (reached last). Its collider
+	# spans the whole lane so you can't squeeze past.
+	var wall := OBSTACLE_SCRIPT.new()
+	wall.setup(_prop_factory, "construction-barrier", Vector3(RoadManager.LANE_WIDTH, 1.0, 0.6))
+	traffic_container.add_child(wall)
+	wall.position = Vector3(lane_x, 0.0, SPAWN_Z)
+	wall.set_meta("bx", lane_x)
+	wall.set_meta("by", 0.0)
 
 
 # ==========================================================================
