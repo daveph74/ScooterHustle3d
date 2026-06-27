@@ -1164,15 +1164,23 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 		var is_vehicle := r2 < 0.75   # scooter or jeepney (the person is not)
 		var ambient := ModelUtil.instance_fitted(scenery_container, ambient_model,
 			Vector3(2, 1.8, 2), "height", 0.0)
-		# Place beside the main prop, slightly closer to the road.
+		# Park right at the kerb (just past the road edge), well in FRONT of the
+		# building. A conservative half-width keeps even the wide jeepney clear.
+		var park_half := 0.9
 		ambient.position = Vector3(
-			side * (road_edge + gap * 0.6 + randf_range(0.2, 0.8)),
-			0.0, center_z + randf_range(-depth * 0.3, depth * 0.3))
+			side * (road_edge + 0.25 + park_half),
+			0.0, center_z + randf_range(-depth * 0.2, depth * 0.2))
 		ambient.set_meta("bx", ambient.position.x)
 		ambient.set_meta("by", 0.0)
 		if is_vehicle:
+			# Set THIS building back so the parked vehicle can't clip into it, and
+			# keep its bx meta in sync (the scroll re-reads bx every frame, so a
+			# stale value would snap the building forward again).
+			var min_center: float = road_edge + 0.25 + 2.0 * park_half + 0.3 + radius
+			holder.position.x = side * maxf(road_edge + gap + radius, min_center)
+			holder.set_meta("bx", holder.position.x)
 			# A parked vehicle sits PARALLEL to the road, facing the way traffic
-			# flows (yaw 270, like moving traffic), occasionally the other way.
+			# flows (yaw 270), occasionally the other way.
 			var heading := 270.0 if randf() < 0.7 else 90.0
 			ambient.rotation_degrees.y = heading + randf_range(-5.0, 5.0)
 		else:
