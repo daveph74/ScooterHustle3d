@@ -499,16 +499,7 @@ func _add_road_details(segment: Node3D) -> void:
 
 	var detail_nodes: Array = []
 
-	# --- Lane arrow (50% chance) ---
-	if randf() < 0.5:
-		var arrow := MeshInstance3D.new()
-		var abm := BoxMesh.new()
-		abm.size = Vector3(0.55, 0.015, 1.1)
-		arrow.mesh = abm
-		arrow.material_override = _arrow_material
-		arrow.position = Vector3(randf_range(-1.0, 1.0), 0.013, randf_range(-1.0, 1.0))
-		segment.add_child(arrow)
-		detail_nodes.append(arrow)
+	# (Lane arrows removed — the plain white box read as a stray block in the lane.)
 
 	# --- Manhole cover (occasional, kept near the road edge) ---
 	# Dark blobs in the driving lanes read as potholes/obstacles, so we keep only
