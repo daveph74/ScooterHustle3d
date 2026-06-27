@@ -12,24 +12,37 @@ signal collected
 # How fast the coin spins, in radians per second.
 const SPIN_SPEED := 4.0
 
+# Custom coin model. Loaded at runtime so the game still runs without it, and
+# falls back to the procedural gold disc if it's missing. Tune these if the coin
+# sits the wrong way: PITCH stands the disc up, YAW turns it, SIZE scales it.
+const COIN_MODEL_PATH := "res://models/custom/coin.glb"
+const COIN_SIZE := 0.9
+const COIN_YAW := 0.0
+const COIN_PITCH := 0.0
+
 var _collected := false
 
 
 func _ready() -> void:
 	add_to_group("coin")
 
-	# Stand the disc up so its flat face points toward the camera, which makes
-	# the spin read as a satisfying "flip".
-	$Mesh.rotation_degrees = Vector3(90, 0, 0)
-
-	# Give it a shiny gold look. Built in code so we don't need image files.
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(1.0, 0.84, 0.0)
-	material.metallic = 0.6
-	material.roughness = 0.25
-	material.emission_enabled = true              # a soft glow so coins pop
-	material.emission = Color(0.55, 0.42, 0.0)
-	$Mesh.material_override = material
+	if ResourceLoader.exists(COIN_MODEL_PATH):
+		# Use the custom coin model; hide the procedural disc.
+		$Mesh.visible = false
+		var holder := ModelUtil.instance_fitted(
+			self, load(COIN_MODEL_PATH), Vector3(COIN_SIZE, COIN_SIZE, COIN_SIZE),
+			"height", COIN_YAW)
+		holder.rotation_degrees.x = COIN_PITCH
+	else:
+		# Fallback: procedural shiny gold disc, stood up so the Y-spin "flips".
+		$Mesh.rotation_degrees = Vector3(90, 0, 0)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(1.0, 0.84, 0.0)
+		material.metallic = 0.6
+		material.roughness = 0.25
+		material.emission_enabled = true              # a soft glow so coins pop
+		material.emission = Color(0.55, 0.42, 0.0)
+		$Mesh.material_override = material
 
 
 func _process(delta: float) -> void:
