@@ -4,14 +4,6 @@ extends RefCounted
 # Cached loaded PackedScene (or null if the glb doesn't exist).
 var _cache: Dictionary = {}
 
-# Shared materials — cached on first use.
-var _mat_concrete: StandardMaterial3D
-var _mat_metal: StandardMaterial3D
-var _mat_wood: StandardMaterial3D
-var _mat_orange: StandardMaterial3D
-var _mat_green: StandardMaterial3D
-var _mat_white: StandardMaterial3D
-
 
 func _get_mat(color: Color) -> StandardMaterial3D:
 	# Returns a cached unshaded-lit material for the given solid color.
@@ -112,7 +104,7 @@ func _build_primitive(key: String, parent: Node3D) -> Node3D:
 			_add_cylinder(holder, 0.32, 0.08, Vector3(0, 0.84, 0), Color(0.18, 0.24, 0.20))
 		"traffic-cone":
 			_add_cylinder(holder, 0.22, 0.06, Vector3(0, 0.03, 0), Color(0.62, 0.18, 0.05))
-			_add_cylinder(holder, 0.0, 0.80, Vector3(0, 0.43, 0), Color(0.90, 0.35, 0.04), 0.0)
+			_add_cylinder(holder, 0.22, 0.80, Vector3(0, 0.43, 0), Color(0.90, 0.35, 0.04), 0.0)
 		"construction-barrier":
 			_add_box(holder, Vector3(0.12, 0.90, 0.12), Vector3(-0.9, 0.45, 0.0), Color(0.30, 0.30, 0.30))
 			_add_box(holder, Vector3(0.12, 0.90, 0.12), Vector3(0.9, 0.45, 0.0), Color(0.30, 0.30, 0.30))
