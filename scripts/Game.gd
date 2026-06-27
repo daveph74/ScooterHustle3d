@@ -487,6 +487,9 @@ func _make_road_segment() -> Node3D:
 			var key: String = clutter_keys[randi() % clutter_keys.size()]
 			var prop := _prop_factory.make(key, segment)
 			prop.set_meta("side", s)
+			# Turn the prop so its long axis runs ALONG the kerb (not across the
+			# road) and faces the road - otherwise benches/barriers sit sideways.
+			prop.rotation_degrees.y = 90.0 if s < 0.0 else -90.0
 			# Position along the tile (random z within the tile, on the sidewalk).
 			prop.position.z = randf_range(-SEGMENT_LENGTH * 0.35, SEGMENT_LENGTH * 0.35)
 			# X will be updated in _scroll_road like the sidewalks. Store base offset.
