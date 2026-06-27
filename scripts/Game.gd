@@ -18,6 +18,7 @@ const COIN_SCENE := preload("res://scenes/Coin.tscn")
 const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
 const PEDESTRIAN_SCRIPT := preload("res://scenes/Pedestrian.gd")
 const SPEED_LINES_SCRIPT := preload("res://ui/SpeedLines.gd")
+const WIND_SHADER: Shader = preload("res://shaders/wind.gdshader")
 
 # Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
 # trees are placed off to the sides and scroll past for a sense of a city.
@@ -173,6 +174,11 @@ var _rain: GPUParticles3D
 var _env: Environment
 var _speed_lines: Node
 
+const BIRD_COUNT  := 3
+const CLOUD_COUNT := 5
+var _birds:  Array = []
+var _clouds: Array = []
+
 
 func _ready() -> void:
 	_make_road_materials()
@@ -220,6 +226,8 @@ func _ready() -> void:
 
 	_speed_lines = SPEED_LINES_SCRIPT.new()
 	add_child(_speed_lines)
+	_build_birds()
+	_build_clouds()
 
 
 func _process(delta: float) -> void:
@@ -258,6 +266,8 @@ func _process(delta: float) -> void:
 	_scroll_crossings(move)
 	_scroll_coins(move)
 	_scroll_scenery(move)
+	_scroll_birds(move, delta)
+	_scroll_clouds(move, delta)
 	_scroll_powerups(move)
 	_update_district_atmosphere(delta)
 
@@ -907,6 +917,36 @@ func _scroll_powerups(amount: float) -> void:
 			pu.queue_free()
 
 
+## Scroll birds with the world and add a gentle drift + fake flap.
+func _scroll_birds(amount: float, delta: float) -> void:
+	for bird in _birds:
+		var b := bird as MeshInstance3D
+		b.position.z += amount
+		b.position.x += (b.get_meta("drift_x") as float) * delta
+		# Fake wing-flap by oscillating the y-scale.
+		var phase: float = b.get_meta("flap_phase")
+		b.scale.y = 1.0 + 0.40 * sin(elapsed * 5.8 + phase)
+		# Wrap behind camera → respawn at horizon.
+		if b.position.z > DESPAWN_Z + 5.0:
+			b.position.z = SPAWN_Z - randf_range(0.0, 50.0)
+			b.position.x = randf_range(-12.0, 12.0)
+			b.position.y = randf_range(14.0, 22.0)
+			b.set_meta("drift_x", randf_range(-0.9, 0.9))
+
+
+## Scroll clouds with the world and a gentle horizontal drift.
+func _scroll_clouds(amount: float, delta: float) -> void:
+	for cloud in _clouds:
+		var c := cloud as MeshInstance3D
+		c.position.z += amount
+		c.position.x += (c.get_meta("drift_x") as float) * delta
+		if c.position.z > DESPAWN_Z + 20.0:
+			c.position.z = SPAWN_Z - randf_range(0.0, 40.0)
+			c.position.x = randf_range(-20.0, 20.0)
+			c.position.y = randf_range(28.0, 46.0)
+			c.set_meta("drift_x", randf_range(-0.35, 0.35))
+
+
 # ==========================================================================
 #  ROADSIDE SCENERY (buildings & trees)
 # ==========================================================================
@@ -914,6 +954,24 @@ func _scroll_powerups(amount: float) -> void:
 ## Fill both road sides with a continuous wall of scenery at startup.
 func _prewarm_scenery() -> void:
 	_fill_scenery()
+
+
+## Recursively apply the wind ShaderMaterial to every MeshInstance3D under root.
+## Copies albedo_color and albedo_texture from the original StandardMaterial3D.
+func _apply_wind_to_tree(root: Node) -> void:
+	if root is MeshInstance3D:
+		var mi := root as MeshInstance3D
+		var sm := ShaderMaterial.new()
+		sm.shader = WIND_SHADER
+		var orig = mi.get_active_material(0)
+		if orig != null and orig is StandardMaterial3D:
+			var std_mat := orig as StandardMaterial3D
+			sm.set_shader_parameter("albedo_color", std_mat.albedo_color)
+			if std_mat.albedo_texture != null:
+				sm.set_shader_parameter("albedo_tex", std_mat.albedo_texture)
+		mi.material_override = sm
+	for child in root.get_children():
+		_apply_wind_to_tree(child)
 
 
 ## Top up each side's street wall so buildings always reach out to SPAWN_Z. As
@@ -946,6 +1004,7 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
 		gap = randf_range(0.2, 1.0)
 		faces_road = false
+		_apply_wind_to_tree(holder)
 	elif scene_type == "landmark" and LANDMARK_MODELS.size() > 0:
 		# A recognisable landmark (Jollibee, church, Petron...), facing the road.
 		var lm_idx := districts.pick_landmark_idx(distance)
@@ -1162,6 +1221,53 @@ func _build_rain() -> void:
 
 	_rain.position = Vector3(0, 12, -12)   # above and ahead of the camera
 	camera.add_child(_rain)
+
+
+## Creates BIRD_COUNT billboard quad "birds" high in the sky.
+func _build_birds() -> void:
+	for i in range(BIRD_COUNT):
+		var bird := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(randf_range(0.5, 0.9), randf_range(0.18, 0.32))
+		bird.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.14, 0.14, 0.16)
+		mat.shading_mode  = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		bird.material_override = mat
+		bird.position = Vector3(
+			randf_range(-12.0, 12.0),
+			randf_range(14.0, 22.0),
+			randf_range(SPAWN_Z, SPAWN_Z - 40.0)
+		)
+		bird.set_meta("drift_x", randf_range(-0.9, 0.9))
+		bird.set_meta("flap_phase", randf() * TAU)
+		add_child(bird)
+		_birds.append(bird)
+
+
+## Creates CLOUD_COUNT semi-transparent billboard quads high in the sky.
+func _build_clouds() -> void:
+	for i in range(CLOUD_COUNT):
+		var cloud := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(randf_range(5.0, 9.0), randf_range(1.8, 3.2))
+		cloud.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color  = Color(0.97, 0.97, 0.98, 0.55)
+		mat.shading_mode  = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency  = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		cloud.material_override = mat
+		# Spread across the full visible Z range so there's no all-at-once pop-in.
+		cloud.position = Vector3(
+			randf_range(-20.0, 20.0),
+			randf_range(28.0, 46.0),
+			randf_range(SPAWN_Z - 10.0, DESPAWN_Z)
+		)
+		cloud.set_meta("drift_x", randf_range(-0.35, 0.35))
+		add_child(cloud)
+		_clouds.append(cloud)
 
 
 ## Toggle the rainstorm look: rain particles + a light fog faded in/out. This is
