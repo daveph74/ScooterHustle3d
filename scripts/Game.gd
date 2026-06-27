@@ -47,6 +47,7 @@ const LANDMARK_MODELS := [
 	preload("res://models/custom/711.glb"),
 	preload("res://models/custom/chowking.glb"),
 	preload("res://models/custom/lto.glb"),
+	preload("res://models/custom/pharmacy.glb"),
 ]
 # Existing models repurposed as decorative ambient life on the sidewalk.
 const PARKED_SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
