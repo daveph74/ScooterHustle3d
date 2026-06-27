@@ -23,18 +23,20 @@ config/icon="res://icon.svg"
 GameData="*res://systems/GameData.gd"
 AudioManager="*res://systems/AudioManager.gd"
 MissionManager="*res://systems/MissionManager.gd"
+Desktop="*res://systems/Desktop.gd"
 
 [display]
 
-; Portrait, phone-shaped window. 1080x1920 is a common phone resolution.
-window/size/viewport_width=1080
-window/size/viewport_height=1920
-; Godot 4 expects an integer enum here (0=Landscape, 1=Portrait). The old
-; string "portrait" is silently ignored -> phone showed landscape.
-window/handheld/orientation=1
-; Scale the game to fit any screen while keeping the aspect ratio.
+; LANDSCAPE PC build. 1280x720 is a comfortable default desktop window.
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/resizable=true
+; Landscape on handheld too (this branch is the PC/landscape version).
+window/handheld/orientation=0
+; "expand" fills any window aspect (the HUD anchors keep their corners, the 3D
+; camera just shows more/less to the sides) - so it scales on any monitor.
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 
 [input]
 
@@ -63,11 +65,13 @@ pointing/emulate_touch_from_mouse=true
 
 [rendering]
 
-; "mobile" renderer is lighter and targets phones well.
-renderer/rendering_method="mobile"
+; Desktop uses the higher-quality Forward+ renderer; phones keep the lighter
+; Mobile renderer, and the web build uses Compatibility (WebGL2).
+renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="mobile"
-; Browsers run on WebGL2, which needs the Compatibility renderer (the mobile /
-; Vulkan renderer won't run on the web). This override only affects web exports.
 renderer/rendering_method.web="gl_compatibility"
 ; Android GPUs need ETC2/ASTC compressed textures (fixes the export warning).
 textures/vram_compression/import_etc2_astc=true
+; Crisper textures at oblique angles (road/buildings) + MSAA edges on desktop.
+textures/default_filters/anisotropic_filtering_level=3
+anti_aliasing/quality/msaa_3d=2

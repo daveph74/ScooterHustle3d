@@ -154,8 +154,14 @@ var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
 
 # --- Camera & shake tuning -----------------------------------------------
 # Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
-const FOV_MIN := 72.0                    # camera FOV at base speed
+const FOV_MIN := 72.0                    # camera FOV at base speed (portrait)
 const FOV_MAX := 90.0                    # camera FOV at max speed (wider = faster-feel)
+# The FOV is VERTICAL, so a tall portrait window needs a wider angle than a wide
+# landscape one. These are picked at runtime from the window aspect (see _ready).
+const FOV_MIN_WIDE := 52.0               # landscape base FOV
+const FOV_MAX_WIDE := 64.0               # landscape max-speed FOV
+var _fov_lo := FOV_MIN
+var _fov_hi := FOV_MAX
 const NEAR_MISS_SHAKE_STRENGTH := 0.22   # camera jolt on near miss
 const NEAR_MISS_SHAKE_DURATION := 0.20
 const CRASH_SHAKE_STRENGTH  := 0.6    # camera jolt on collision/crash
@@ -229,9 +235,15 @@ func _ready() -> void:
 	# Wire up the power-up manager now that base_speed is known.
 	powerups.setup(player, hud, base_speed)
 
-	# Camera: sit behind and above, look slightly down the road.
+	# Camera: sit behind and above, look slightly down the road. Pick a vertical
+	# FOV range to suit the window shape - narrower for wide (landscape/PC),
+	# wider for tall (portrait/phone) - so the framing looks right either way.
 	camera.rotation_degrees.x = -16.0
-	camera.fov = FOV_MIN
+	var vp := get_viewport().get_visible_rect().size
+	var wide := vp.x > vp.y
+	_fov_lo = FOV_MIN_WIDE if wide else FOV_MIN
+	_fov_hi = FOV_MAX_WIDE if wide else FOV_MAX
+	camera.fov = _fov_lo
 
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
@@ -1230,9 +1242,10 @@ func _update_camera(delta: float) -> void:
 	var target_roll := -player.position.x * 0.02 - ahead.x * 0.01
 	camera.rotation.z = lerp(camera.rotation.z, target_roll, follow)
 
-	# Widen the field of view as we speed up = sense of speed.
+	# Widen the field of view as we speed up = sense of speed (range chosen for
+	# the window's aspect in _ready).
 	var speed_ratio: float = clamp((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
-	camera.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
+	camera.fov = lerp(_fov_lo, _fov_hi, speed_ratio)
 
 
 func _add_shake(strength: float, duration: float) -> void:
