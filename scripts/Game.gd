@@ -28,6 +28,7 @@ const BUILDING_MODELS := [
 	preload("res://models/city/building-small-c.glb"),
 	preload("res://models/city/building-small-d.glb"),
 	preload("res://models/city/building-garage.glb"),
+	preload("res://models/custom/apartment.glb"),
 ]
 const TREE_MODELS := [
 	preload("res://models/custom/palm-tree.glb"),
@@ -456,7 +457,7 @@ func _make_road_segment() -> Node3D:
 	segment.set_meta("lamp_posts", lamp_posts)
 
 	# Random sidewalk clutter (bench / bin / pot / cone — 0 or 1 per tile side).
-	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone"]
+	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone", "construction-barrier"]
 	for s in [-1.0, 1.0]:
 		if randi() % 3 == 0:   # ~33% chance each side
 			var key: String = clutter_keys[randi() % clutter_keys.size()]
