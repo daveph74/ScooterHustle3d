@@ -27,9 +27,9 @@ Desktop="*res://systems/Desktop.gd"
 
 [display]
 
-; LANDSCAPE PC build. 1280x720 is a comfortable default desktop window.
-window/size/viewport_width=1280
-window/size/viewport_height=720
+; LANDSCAPE PC build. Opens at 1080p; resizable + "expand" scales to any size.
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 window/size/resizable=true
 ; Landscape on handheld too (this branch is the PC/landscape version).
 window/handheld/orientation=0
