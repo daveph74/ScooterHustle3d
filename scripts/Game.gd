@@ -29,6 +29,8 @@ const BUILDING_MODELS := [
 ]
 const TREE_MODELS := [
 	preload("res://models/custom/palm-tree.glb"),
+	preload("res://models/city/grass-trees.glb"),
+	preload("res://models/city/grass-trees-tall.glb"),
 ]
 # Recognisable landmarks (custom Meshy models). Unlike generic buildings these
 # are oriented to FACE THE ROAD so you always see the storefront.
@@ -50,6 +52,7 @@ const LANDMARK_YAW := 0.0
 # RoadManager is the single source of truth for lane positions, road width and
 # dividers at any point on the road. Everything below asks road.config_at(world).
 var road := RoadManager.new()
+var districts := Districts.new()
 const MAX_ROAD_WIDTH := 11.5   # 4 lanes*2.5 + 2*0.75 shoulder; tiles are built this wide and scaled down per section
 const SIDEWALK_WIDTH := 2.6    # raised concrete pavement along each road edge (buildings sit on it)
 const DEBUG_LANES := false     # set true to show lane count / section type on the HUD
@@ -242,6 +245,7 @@ func _process(delta: float) -> void:
 	_scroll_coins(move)
 	_scroll_scenery(move)
 	_scroll_powerups(move)
+	_update_district_atmosphere(delta)
 
 	# --- Spawning ---------------------------------------------------------
 	# Spawn intervals are scaled by the active event (denser traffic/coins/etc).
@@ -758,16 +762,18 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 	var holder: Node3D
 	var gap: float          # extra setback from the road edge
 	var faces_road := true  # buildings/landmarks turn their front to the street
-	var roll := randf()
-	if roll < 0.25:
+	var scene_type := districts.pick_type(distance)
+	if scene_type == "tree":
 		# A clump of trees right at the kerb (small, breaks up the frontage).
-		var model: PackedScene = TREE_MODELS[randi() % TREE_MODELS.size()]
+		var variant := districts.pick_tree_variant(distance)
+		var model: PackedScene = TREE_MODELS[clampi(variant, 0, TREE_MODELS.size() - 1)]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
 		gap = randf_range(0.2, 1.0)
 		faces_road = false
-	elif LANDMARK_MODELS.size() > 0 and roll < 0.45:
+	elif scene_type == "landmark" and LANDMARK_MODELS.size() > 0:
 		# A recognisable landmark (Jollibee, church, Petron...), facing the road.
-		var model: PackedScene = LANDMARK_MODELS[randi() % LANDMARK_MODELS.size()]
+		var lm_idx := districts.pick_landmark_idx(distance)
+		var model: PackedScene = LANDMARK_MODELS[clampi(lm_idx, 0, LANDMARK_MODELS.size() - 1)]
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(9, randf_range(8.0, 11.0), 9), "height", 0.0)
 		gap = randf_range(0.6, 1.4)
 	else:
@@ -906,6 +912,25 @@ func _on_event_started(display_name: String) -> void:
 
 func _on_event_ended() -> void:
 	_set_rain(false)
+
+
+## Smoothly shift ground, ambient and sun colours to match the current district.
+## Fog colour is also shifted unless a rainstorm is overriding it.
+func _update_district_atmosphere(delta: float) -> void:
+	var rate: float = delta * 0.4   # slow lerp so transitions are never jarring
+
+	_ground_material.albedo_color = _ground_material.albedo_color.lerp(
+		districts.get_ground_color(distance), rate)
+
+	_env.ambient_light_color = _env.ambient_light_color.lerp(
+		districts.get_ambient_color(distance), rate)
+
+	sun.light_color = sun.light_color.lerp(
+		districts.get_sun_color(distance), rate)
+
+	if not events.is_raining():
+		_env.fog_light_color = _env.fog_light_color.lerp(
+			districts.get_fog_color(distance), rate)
 
 
 ## Build the rain emitter once (idle until a rainstorm event). Parented to the
