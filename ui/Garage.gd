@@ -75,8 +75,6 @@ func _ready() -> void:
 	outer.add_child(back)
 
 	_refresh()
-	UiTheme.apply_buttons(self)
-	UiTheme.apply_panels(self)
 
 
 func _make_tab(text: String, tab_id: String) -> Button:

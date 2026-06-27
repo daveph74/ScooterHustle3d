@@ -58,8 +58,6 @@ func _ready() -> void:
 	outer.add_child(back)
 
 	_refresh()
-	UiTheme.apply_buttons(self)
-	UiTheme.apply_panels(self)
 
 
 func _refresh() -> void:
