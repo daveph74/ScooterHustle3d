@@ -53,7 +53,8 @@ var _dust: GPUParticles3D
 # Custom "Pilipinas Hustle" scooter (generated on Meshy, optimised to ~30k tris
 # / 1K textures). ModelUtil auto-scales it to fit, so we only ever tweak this
 # facing flag if it points the wrong way down the road.
-const SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
+# Loaded via ModelUtil.hd_load so the PC build can use a models/pc/ HD version.
+const SCOOTER_MODEL_PATH := "res://models/custom/scooter.glb"
 # Rotate the model so it faces down the road. Tune in 90° steps if needed.
 const SCOOTER_YAW := 270.0
 
@@ -82,7 +83,7 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 func _ready() -> void:
 	# Drop in the scooter model, auto-fitted to the player's size, then apply the
 	# equipped cosmetics (paint / helmet / wheels) - purely visual.
-	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
+	var holder := ModelUtil.instance_fitted($Model, ModelUtil.hd_load(SCOOTER_MODEL_PATH), Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Sit a rider on the bike, if the art exists yet.
@@ -198,7 +199,7 @@ func _fade_curve() -> CurveTexture:
 func _mount_rider() -> void:
 	if not ResourceLoader.exists(RIDER_MODEL_PATH):
 		return
-	var rider_scene: PackedScene = load(RIDER_MODEL_PATH)
+	var rider_scene: PackedScene = ModelUtil.hd_load(RIDER_MODEL_PATH)
 	var rider := ModelUtil.instance_fitted(
 		$Model, rider_scene, Vector3(0.6, RIDER_HEIGHT, 0.6), "height", RIDER_YAW)
 	# Lift/nudge them onto the seat (the model is grounded at y=0 by ModelUtil).

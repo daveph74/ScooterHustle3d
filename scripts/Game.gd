@@ -21,38 +21,39 @@ const OBSTACLE_SCRIPT := preload("res://scenes/Obstacle.gd")
 const SPEED_LINES_SCRIPT := preload("res://ui/SpeedLines.gd")
 const WIND_SHADER: Shader = preload("res://shaders/wind.gdshader")
 
-# Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
-# trees are placed off to the sides and scroll past for a sense of a city.
+# Roadside scenery models. These are PATHS (resolved via ModelUtil.hd_load, so
+# the PC build uses a models/pc/ HD version when present). Buildings and trees
+# are placed off to the sides and scroll past for a sense of a city.
 const BUILDING_MODELS := [
-	preload("res://models/city/building-small-a.glb"),
-	preload("res://models/city/building-small-b.glb"),
-	preload("res://models/city/building-small-c.glb"),
-	preload("res://models/city/building-small-d.glb"),
-	preload("res://models/city/building-garage.glb"),
-	preload("res://models/custom/apartment.glb"),
+	"res://models/city/building-small-a.glb",
+	"res://models/city/building-small-b.glb",
+	"res://models/city/building-small-c.glb",
+	"res://models/city/building-small-d.glb",
+	"res://models/city/building-garage.glb",
+	"res://models/custom/apartment.glb",
 ]
 const TREE_MODELS := [
-	preload("res://models/custom/palm-tree.glb"),
-	preload("res://models/city/grass-trees.glb"),
-	preload("res://models/city/grass-trees-tall.glb"),
+	"res://models/custom/palm-tree.glb",
+	"res://models/city/grass-trees.glb",
+	"res://models/city/grass-trees-tall.glb",
 ]
 # Recognisable landmarks (custom Meshy models). Unlike generic buildings these
 # are oriented to FACE THE ROAD so you always see the storefront.
 const LANDMARK_MODELS := [
-	preload("res://models/custom/jollibee.glb"),
-	preload("res://models/custom/church.glb"),
-	preload("res://models/custom/insal.glb"),
-	preload("res://models/custom/petron.glb"),
-	preload("res://models/custom/sari-sari.glb"),
-	preload("res://models/custom/711.glb"),
-	preload("res://models/custom/chowking.glb"),
-	preload("res://models/custom/lto.glb"),
-	preload("res://models/custom/pharmacy.glb"),
+	"res://models/custom/jollibee.glb",
+	"res://models/custom/church.glb",
+	"res://models/custom/insal.glb",
+	"res://models/custom/petron.glb",
+	"res://models/custom/sari-sari.glb",
+	"res://models/custom/711.glb",
+	"res://models/custom/chowking.glb",
+	"res://models/custom/lto.glb",
+	"res://models/custom/pharmacy.glb",
 ]
 # Existing models repurposed as decorative ambient life on the sidewalk.
-const PARKED_SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
-const PARKED_JEEPNEY_MODEL := preload("res://models/custom/jeepney.glb")
-const AMBIENT_PERSON_MODEL  := preload("res://models/custom/man.glb")
+const PARKED_SCOOTER_MODEL := "res://models/custom/scooter.glb"
+const PARKED_JEEPNEY_MODEL := "res://models/custom/jeepney.glb"
+const AMBIENT_PERSON_MODEL  := "res://models/custom/man.glb"
 # Base yaw so a landmark's front faces the road on the LEFT side; the right side
 # is auto-flipped by 180. Tune this if the storefront faces the wrong way.
 const LANDMARK_YAW := 0.0
@@ -1131,7 +1132,7 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 	if scene_type == "tree":
 		# A clump of trees right at the kerb (small, breaks up the frontage).
 		var variant := districts.pick_tree_variant(distance)
-		var model: PackedScene = TREE_MODELS[clampi(variant, 0, TREE_MODELS.size() - 1)]
+		var model := ModelUtil.hd_load(TREE_MODELS[clampi(variant, 0, TREE_MODELS.size() - 1)])
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(3, randf_range(3.0, 5.0), 3), "height", 0.0)
 		gap = randf_range(0.2, 1.0)
 		faces_road = false
@@ -1139,12 +1140,12 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 	elif scene_type == "landmark" and LANDMARK_MODELS.size() > 0:
 		# A recognisable landmark (Jollibee, church, Petron...), facing the road.
 		var lm_idx := districts.pick_landmark_idx(distance)
-		var model: PackedScene = LANDMARK_MODELS[clampi(lm_idx, 0, LANDMARK_MODELS.size() - 1)]
+		var model := ModelUtil.hd_load(LANDMARK_MODELS[clampi(lm_idx, 0, LANDMARK_MODELS.size() - 1)])
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(9, randf_range(8.0, 11.0), 9), "height", 0.0)
 		gap = randf_range(0.6, 1.4)
 	else:
 		# A generic building, hugging the road to form the street wall.
-		var model: PackedScene = BUILDING_MODELS[randi() % BUILDING_MODELS.size()]
+		var model := ModelUtil.hd_load(BUILDING_MODELS[randi() % BUILDING_MODELS.size()])
 		holder = ModelUtil.instance_fitted(scenery_container, model, Vector3(8, randf_range(7.0, 16.0), 8), "height", 0.0)
 		gap = randf_range(0.5, 1.8)
 
@@ -1170,7 +1171,7 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 
 	# Occasionally park a scooter or jeepney alongside buildings (not trees).
 	if faces_road and randf() < 0.18:
-		var ambient_model: PackedScene
+		var ambient_model := ""
 		var r2 := randf()
 		if r2 < 0.5:
 			ambient_model = PARKED_SCOOTER_MODEL
@@ -1179,7 +1180,7 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 		else:
 			ambient_model = AMBIENT_PERSON_MODEL
 		var is_vehicle := r2 < 0.75   # scooter or jeepney (the person is not)
-		var ambient := ModelUtil.instance_fitted(scenery_container, ambient_model,
+		var ambient := ModelUtil.instance_fitted(scenery_container, ModelUtil.hd_load(ambient_model),
 			Vector3(2, 1.8, 2), "height", 0.0)
 		# Park right at the kerb (just past the road edge), well in FRONT of the
 		# building. A conservative half-width keeps even the wide jeepney clear.
