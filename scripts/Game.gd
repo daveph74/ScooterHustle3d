@@ -186,7 +186,9 @@ var _env: Environment
 var _speed_lines: Node
 
 const BIRD_COUNT  := 3
-const CLOUD_COUNT := 5
+# Clouds were flat billboard quads that read as grey smears in the sky; disabled.
+# Bump back above 0 only if you replace them with a proper cloud sprite/model.
+const CLOUD_COUNT := 0
 var _birds:  Array = []
 var _clouds: Array = []
 
@@ -508,8 +510,12 @@ func _add_road_details(segment: Node3D) -> void:
 		segment.add_child(arrow)
 		detail_nodes.append(arrow)
 
-	# --- Manhole cover (40% chance) ---
-	if randf() < 0.4:
+	# --- Manhole cover (occasional, kept near the road edge) ---
+	# Dark blobs in the driving lanes read as potholes/obstacles, so we keep only
+	# the recognisable round manhole, rarely, and push it toward the kerb so the
+	# centre lanes stay clean. (Asphalt patches / oil stains / storm drains were
+	# removed for the same reason.)
+	if randf() < 0.18:
 		var mh := MeshInstance3D.new()
 		var mhm := CylinderMesh.new()
 		mhm.top_radius = 0.42
@@ -519,48 +525,12 @@ func _add_road_details(segment: Node3D) -> void:
 		mh.mesh = mhm
 		mh.material_override = _detail_material
 		var asphalt_mi: MeshInstance3D = segment.get_meta("asphalt")
-		var road_half: float = (asphalt_mi.scale.x * MAX_ROAD_WIDTH) * 0.5 * 0.85
-		var lane_offset := randf_range(-road_half, road_half)
+		var road_half: float = (asphalt_mi.scale.x * MAX_ROAD_WIDTH) * 0.5
+		# Outer third of the road only (near the shoulder, not the racing line).
+		var lane_offset: float = (1.0 if randf() < 0.5 else -1.0) * randf_range(road_half * 0.6, road_half * 0.9)
 		mh.position = Vector3(lane_offset, 0.01, randf_range(-1.2, 1.2))
 		segment.add_child(mh)
 		detail_nodes.append(mh)
-
-	# --- Storm drain (35% chance) ---
-	if randf() < 0.35:
-		var dr := MeshInstance3D.new()
-		var drm := BoxMesh.new()
-		drm.size = Vector3(0.55, 0.015, 0.28)
-		dr.mesh = drm
-		dr.material_override = _detail_material
-		dr.position = Vector3(randf_range(-3.5, 3.5), 0.011, randf_range(-1.5, 1.5))
-		segment.add_child(dr)
-		detail_nodes.append(dr)
-
-	# --- Asphalt patch (45% chance) ---
-	if randf() < 0.45:
-		var patch := MeshInstance3D.new()
-		var pm := PlaneMesh.new()
-		pm.size = Vector2(randf_range(0.8, 2.2), randf_range(0.6, 1.4))
-		patch.mesh = pm
-		var pm_mat := StandardMaterial3D.new()
-		pm_mat.albedo_color = Color(
-			randf_range(0.13, 0.22), randf_range(0.13, 0.22), randf_range(0.14, 0.23))
-		pm_mat.roughness = 1.0
-		patch.material_override = pm_mat
-		patch.position = Vector3(randf_range(-3.5, 3.5), 0.009, randf_range(-1.5, 1.5))
-		segment.add_child(patch)
-		detail_nodes.append(patch)
-
-	# --- Oil stain (30% chance) ---
-	if randf() < 0.30:
-		var oil := MeshInstance3D.new()
-		var om := PlaneMesh.new()
-		om.size = Vector2(randf_range(0.5, 1.2), randf_range(0.4, 0.9))
-		oil.mesh = om
-		oil.material_override = _oil_material
-		oil.position = Vector3(randf_range(-3.0, 3.0), 0.008, randf_range(-1.5, 1.5))
-		segment.add_child(oil)
-		detail_nodes.append(oil)
 
 	segment.set_meta("detail_nodes", detail_nodes)
 
