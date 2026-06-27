@@ -70,7 +70,7 @@ directional_shadow_blend_splits = true
 environment = SubResource("env")
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.2, 7)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 5.8)
 
 [node name="RoadContainer" type="Node3D" parent="."]
 

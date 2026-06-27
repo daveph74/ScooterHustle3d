@@ -17,6 +17,7 @@ const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
 const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
 const PEDESTRIAN_SCRIPT := preload("res://scenes/Pedestrian.gd")
+const SPEED_LINES_SCRIPT := preload("res://ui/SpeedLines.gd")
 
 # Roadside scenery models (Kenney "City Kit", MIT licensed). Buildings and
 # trees are placed off to the sides and scroll past for a sense of a city.
@@ -170,6 +171,7 @@ var _shoulder_material: StandardMaterial3D
 # Rainstorm visuals (built in code, active only during a rainstorm event).
 var _rain: GPUParticles3D
 var _env: Environment
+var _speed_lines: Node
 
 
 func _ready() -> void:
@@ -215,6 +217,9 @@ func _ready() -> void:
 	hud.set_score(0)
 
 	playing = true
+
+	_speed_lines = SPEED_LINES_SCRIPT.new()
+	add_child(_speed_lines)
 
 
 func _process(delta: float) -> void:
@@ -287,6 +292,9 @@ func _process(delta: float) -> void:
 	hud.set_score(score)
 	# Engine note revs up as we go faster.
 	AudioManager.update_engine((speed - base_speed) / (MAX_SPEED - base_speed + 0.001))
+	var speed_ratio: float = clampf((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
+	player.set_speed_ratio(speed_ratio)
+	_speed_lines.set_speed_ratio(speed_ratio)
 	_update_camera(delta)
 	_update_shake(delta)
 
@@ -1036,7 +1044,7 @@ func _update_camera(delta: float) -> void:
 
 	# Widen the field of view as we speed up = sense of speed.
 	var speed_ratio: float = clamp((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
-	camera.fov = lerp(70.0, 82.0, speed_ratio)
+	camera.fov = lerp(72.0, 90.0, speed_ratio)
 
 
 func _add_shake(strength: float, duration: float) -> void:
@@ -1060,7 +1068,7 @@ func _update_shake(delta: float) -> void:
 
 func _on_near_miss() -> void:
 	score_value += 25.0 * combo.multiplier()
-	_add_shake(0.15, 0.15)
+	_add_shake(0.22, 0.20)
 	hud.flash_near_miss()
 	AudioManager.play_sfx("near_miss")
 	MissionManager.report("near_miss", 1)
