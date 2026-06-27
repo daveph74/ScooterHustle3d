@@ -14,7 +14,7 @@ const SCREEN_CY := 960.0   # portrait 1920 / 2
 
 
 func _ready() -> void:
-	layer = 10   # above game world, below HUD (HUD uses default layer 0 or 1)
+	layer = 0   # above 3D world, below HUD (HUD CanvasLayer uses default layer 1)
 	_build_lines()
 
 

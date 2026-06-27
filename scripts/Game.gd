@@ -196,7 +196,7 @@ func _ready() -> void:
 
 	# Camera: sit behind and above, look slightly down the road.
 	camera.rotation_degrees.x = -16.0
-	camera.fov = 70.0
+	camera.fov = 72.0
 
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
