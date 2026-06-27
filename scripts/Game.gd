@@ -247,8 +247,8 @@ func _ready() -> void:
 	if wide:
 		# Bring the camera in a little on widescreen so the action reads bigger,
 		# without getting too close to the scooter.
-		camera.position.y = 2.45
-		camera.position.z = 5.3
+		camera.position.y = 2.55
+		camera.position.z = 5.7
 
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
