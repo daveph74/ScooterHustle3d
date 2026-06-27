@@ -136,11 +136,12 @@ func pick_landmark_idx(dist: float) -> int:
 ## Beach Road and Residential prefer taller Kenney trees.
 func pick_tree_variant(dist: float) -> int:
 	var info := _idx_and_blend(dist)
-	var idx: int = info[0]
-	if idx == 4:   # Beach Road — all three equally
+	# Stochastically blend between current and next district at transitions.
+	var idx: int = info[1] if randf() < info[2] else info[0]
+	if idx == 4:   # Beach Road: all three variants equally
 		return randi() % 3
-	elif idx == 2: # Residential — 50% chance of a Kenney variant
-		return (randi() % 3) if randf() < 0.5 else 0
+	elif idx == 2: # Residential: 50% palm, 50% Kenney (grass-trees or grass-trees-tall)
+		return 0 if randf() < 0.5 else (1 + randi() % 2)
 	return 0   # all other districts: palm only
 
 
