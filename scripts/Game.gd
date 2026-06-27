@@ -142,6 +142,10 @@ const FOV_MIN := 72.0                    # camera FOV at base speed
 const FOV_MAX := 90.0                    # camera FOV at max speed (wider = faster-feel)
 const NEAR_MISS_SHAKE_STRENGTH := 0.22   # camera jolt on near miss
 const NEAR_MISS_SHAKE_DURATION := 0.20
+const CRASH_SHAKE_STRENGTH  := 0.6    # camera jolt on collision/crash
+const CRASH_SHAKE_DURATION  := 0.6
+const SHIELD_SHAKE_STRENGTH := 0.25   # camera bump when shield absorbs a hit
+const SHIELD_SHAKE_DURATION := 0.25
 
 # --- Screen shake ---------------------------------------------------------
 var shake_strength := 0.0
@@ -209,7 +213,7 @@ func _ready() -> void:
 
 	# Camera: sit behind and above, look slightly down the road.
 	camera.rotation_degrees.x = -16.0
-	camera.fov = 72.0
+	camera.fov = FOV_MIN
 
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
@@ -1161,7 +1165,7 @@ func _on_powerup_collected(kind: String) -> void:
 
 func _on_shielded() -> void:
 	AudioManager.play_sfx("shield")
-	_add_shake(0.25, 0.25)
+	_add_shake(SHIELD_SHAKE_STRENGTH, SHIELD_SHAKE_DURATION)
 
 
 # ==========================================================================
@@ -1299,7 +1303,7 @@ func _on_player_crashed() -> void:
 	if not playing:
 		return
 	playing = false
-	_add_shake(0.6, 0.6)   # a hard jolt on impact
+	_add_shake(CRASH_SHAKE_STRENGTH, CRASH_SHAKE_DURATION)   # a hard jolt on impact
 	AudioManager.stop_engine()        # the engine cuts out on impact
 	AudioManager.play_sfx("crash")
 	AudioManager.play_sfx("scream")   # the rider yelps as he's flung off

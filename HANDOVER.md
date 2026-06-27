@@ -227,8 +227,10 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 - Drifts X partly toward the player's lane and toward the bend ahead.
 - **Yaws into bends** and **pitches with hills** by sampling `_path_offset(-22)` (22 m ahead). Base downward tilt is −16°.
 - Banks (roll) slightly into lane changes and bends.
-- **FOV widens 70°→82°** as speed increases for a sense of speed.
-- Screen shake uses the camera's `h_offset`/`v_offset` so it never fights the position lerp. Crash = strong (0.6), near miss = small (0.15), decaying over time.
+- **FOV widens FOV_MIN=72°→FOV_MAX=90°** as speed increases for a sense of speed.
+- Screen shake uses the camera's `h_offset`/`v_offset` so it never fights the position lerp. Crash = strong (0.6), near miss = small (0.22), decaying over time.
+
+See §15.5 for FOV constants, shake constants, dust emitter, and speed-line overlay added in v3.
 
 ### 6.7 ModelUtil (`systems/ModelUtil.gd`)
 `instance_fitted(parent, packed_scene, target, fit_axis, face_back)`:
@@ -644,7 +646,7 @@ per-frame cost.
 **Wind sway:** `_apply_wind_to_tree(root)` is called on every spawned tree. It
 recursively finds all `MeshInstance3D` nodes, creates a new `ShaderMaterial`
 with `shaders/wind.gdshader`, copies the original `albedo_color` and
-`albedo_texture`, and sets it as `material_override`. The shader displaces
+`albedo_tex`, and sets it as `material_override`. The shader displaces
 vertices horizontally proportional to `VERTEX.y`, driven by `TIME`. GPU-only,
 no per-frame GDScript cost per tree.
 
