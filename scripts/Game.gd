@@ -461,9 +461,12 @@ func _make_road_segment() -> Node3D:
 ## Called once on creation and again every time the tile recycles to the far end.
 func _add_road_details(segment: Node3D) -> void:
 	# Remove any details from a previous cycle.
-	for child in segment.get_children():
-		if child.has_meta("road_detail"):
-			child.queue_free()
+	var prior: Array = segment.get_meta("detail_nodes", [])
+	for n in prior:
+		if is_instance_valid(n):
+			n.queue_free()
+
+	var detail_nodes: Array = []
 
 	# --- Lane arrow (50% chance) ---
 	if randf() < 0.5:
@@ -473,8 +476,8 @@ func _add_road_details(segment: Node3D) -> void:
 		arrow.mesh = abm
 		arrow.material_override = _arrow_material
 		arrow.position = Vector3(randf_range(-1.0, 1.0), 0.013, randf_range(-1.0, 1.0))
-		arrow.set_meta("road_detail", true)
 		segment.add_child(arrow)
+		detail_nodes.append(arrow)
 
 	# --- Manhole cover (40% chance) ---
 	if randf() < 0.4:
@@ -486,10 +489,12 @@ func _add_road_details(segment: Node3D) -> void:
 		mhm.radial_segments = 12
 		mh.mesh = mhm
 		mh.material_override = _detail_material
-		var lane_offset := randf_range(-3.0, 3.0)
+		var asphalt_mi: MeshInstance3D = segment.get_meta("asphalt")
+		var road_half: float = (asphalt_mi.scale.x * MAX_ROAD_WIDTH) * 0.5 * 0.85
+		var lane_offset := randf_range(-road_half, road_half)
 		mh.position = Vector3(lane_offset, 0.01, randf_range(-1.2, 1.2))
-		mh.set_meta("road_detail", true)
 		segment.add_child(mh)
+		detail_nodes.append(mh)
 
 	# --- Storm drain (35% chance) ---
 	if randf() < 0.35:
@@ -499,8 +504,8 @@ func _add_road_details(segment: Node3D) -> void:
 		dr.mesh = drm
 		dr.material_override = _detail_material
 		dr.position = Vector3(randf_range(-3.5, 3.5), 0.011, randf_range(-1.5, 1.5))
-		dr.set_meta("road_detail", true)
 		segment.add_child(dr)
+		detail_nodes.append(dr)
 
 	# --- Asphalt patch (45% chance) ---
 	if randf() < 0.45:
@@ -514,8 +519,8 @@ func _add_road_details(segment: Node3D) -> void:
 		pm_mat.roughness = 1.0
 		patch.material_override = pm_mat
 		patch.position = Vector3(randf_range(-3.5, 3.5), 0.009, randf_range(-1.5, 1.5))
-		patch.set_meta("road_detail", true)
 		segment.add_child(patch)
+		detail_nodes.append(patch)
 
 	# --- Oil stain (30% chance) ---
 	if randf() < 0.30:
@@ -525,8 +530,10 @@ func _add_road_details(segment: Node3D) -> void:
 		oil.mesh = om
 		oil.material_override = _oil_material
 		oil.position = Vector3(randf_range(-3.0, 3.0), 0.008, randf_range(-1.5, 1.5))
-		oil.set_meta("road_detail", true)
 		segment.add_child(oil)
+		detail_nodes.append(oil)
+
+	segment.set_meta("detail_nodes", detail_nodes)
 
 
 ## Slide every road tile toward the player; recycle any that fall behind, and
