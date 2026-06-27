@@ -245,10 +245,10 @@ func _ready() -> void:
 	_fov_hi = FOV_MAX_WIDE if wide else FOV_MAX
 	camera.fov = _fov_lo
 	if wide:
-		# Pull the camera in closer on widescreen so the scooter and the action
-		# read big instead of small-and-distant in the wide frame.
-		camera.position.y = 2.3
-		camera.position.z = 4.7
+		# Bring the camera in a little on widescreen so the action reads bigger,
+		# without getting too close to the scooter.
+		camera.position.y = 2.45
+		camera.position.z = 5.3
 
 	# Listen to the player.
 	player.crashed.connect(_on_player_crashed)
