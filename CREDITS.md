@@ -21,6 +21,10 @@ The music loops (`audio/music/`) and sound effects (`audio/sfx/`) are
 Python script (no samples, no third-party audio). They are original to this
 project and carry no external licence obligations.
 
+## Icons
+
+coin.svg and distance.svg — original SVG artwork created for this project.
+
 ## Everything else
 
 All code, scenes, the scooter/traffic gameplay and UI are original to this

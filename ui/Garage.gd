@@ -75,6 +75,8 @@ func _ready() -> void:
 	outer.add_child(back)
 
 	_refresh()
+	UiTheme.apply_buttons(self)
+	UiTheme.apply_panels(self)
 
 
 func _make_tab(text: String, tab_id: String) -> Button:
@@ -109,6 +111,8 @@ func _refresh() -> void:
 			_list.add_child(_make_section_header(SLOT_TITLES[slot]))
 			for entry in _cosmetics.list_for_slot(slot):
 				_list.add_child(_make_cosmetic_card(entry))
+	UiTheme.apply_buttons(self)
+	UiTheme.apply_panels(self)
 
 
 func _make_section_header(text: String) -> Label:

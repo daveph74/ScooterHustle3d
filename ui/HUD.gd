@@ -42,9 +42,35 @@ func _ready() -> void:
 	_run_label = _make_label("Coins: 0", HORIZONTAL_ALIGNMENT_LEFT)
 	_score_label = _make_label("0 m", HORIZONTAL_ALIGNMENT_CENTER)
 	_total_label = _make_label("Total: 0", HORIZONTAL_ALIGNMENT_RIGHT)
-	for label in [_run_label, _score_label, _total_label]:
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bar.add_child(label)
+
+	# Coin icon + run coins label wrapped in a small HBox.
+	var coin_icon_row := HBoxContainer.new()
+	coin_icon_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coin_icon_row.add_theme_constant_override("separation", 6)
+	var coin_icon := TextureRect.new()
+	coin_icon.texture = load("res://ui/icons/coin.svg")
+	coin_icon.custom_minimum_size = Vector2(26, 26)
+	coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin_icon_row.add_child(coin_icon)
+	_run_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coin_icon_row.add_child(_run_label)
+	bar.add_child(coin_icon_row)
+
+	# Distance icon + score label wrapped in a small HBox.
+	var dist_icon_row := HBoxContainer.new()
+	dist_icon_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dist_icon_row.add_theme_constant_override("separation", 6)
+	var dist_icon := TextureRect.new()
+	dist_icon.texture = load("res://ui/icons/distance.svg")
+	dist_icon.custom_minimum_size = Vector2(22, 22)
+	dist_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dist_icon_row.add_child(dist_icon)
+	_score_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dist_icon_row.add_child(_score_label)
+	bar.add_child(dist_icon_row)
+
+	_total_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(_total_label)
 
 	# A big "NEAR MISS!" flash in the centre of the screen, hidden until used.
 	_near_miss_label = _make_label("NEAR MISS!", HORIZONTAL_ALIGNMENT_CENTER)
@@ -83,6 +109,7 @@ func _ready() -> void:
 	add_child(_event_banner)
 
 	_build_pause_ui()
+	UiTheme.apply_buttons(self)
 
 
 # --- Pause -----------------------------------------------------------------

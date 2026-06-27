@@ -58,6 +58,8 @@ func _ready() -> void:
 	outer.add_child(back)
 
 	_refresh()
+	UiTheme.apply_buttons(self)
+	UiTheme.apply_panels(self)
 
 
 func _refresh() -> void:
@@ -66,6 +68,8 @@ func _refresh() -> void:
 		child.queue_free()
 	for mission in MissionManager.active_missions():
 		_list.add_child(_make_mission_card(mission))
+	UiTheme.apply_buttons(self)
+	UiTheme.apply_panels(self)
 
 
 func _make_mission_card(mission: Dictionary) -> Control:

@@ -48,6 +48,9 @@ func _ready() -> void:
 	menu.pressed.connect(_on_menu)
 	box.add_child(menu)
 
+	UiTheme.apply_buttons(self)
+	UiTheme.apply_panels(self)
+
 
 # --- Small UI builders ----------------------------------------------------
 

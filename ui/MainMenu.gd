@@ -91,6 +91,7 @@ func _ready() -> void:
 	box.add_child(_sfx_button)
 
 	_refresh_audio_labels()
+	UiTheme.apply_buttons(self)
 
 
 func _make_button(text: String) -> Button:
