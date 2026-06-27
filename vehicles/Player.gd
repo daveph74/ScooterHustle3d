@@ -41,6 +41,11 @@ var _since_lane_change := 999.0
 
 var _speed_ratio: float = 0.0
 
+# Soft round dust texture (white with a radial alpha falloff) so the exhaust
+# puffs read as dust, not hard squares. Tinted dusty-tan in the material.
+const DUST_TEXTURE := preload("res://effects/dust.png")
+var _dust: GPUParticles3D
+
 # --- Visual model ---------------------------------------------------------
 # Custom "Pilipinas Hustle" scooter (generated on Meshy, optimised to ~30k tris
 # / 1K textures). ModelUtil auto-scales it to fit, so we only ever tweak this
@@ -85,6 +90,8 @@ func _ready() -> void:
 	if scooter:
 		lane_change_speed = 7.0 * scooter.handling
 
+	_build_dust()
+
 	# Connect collisions. Because traffic and coins are also Area3D nodes,
 	# we listen for "area_entered".
 	area_entered.connect(_on_area_entered)
@@ -95,6 +102,70 @@ func _ready() -> void:
 
 func set_speed_ratio(ratio: float) -> void:
 	_speed_ratio = ratio
+	# Kick out more dust the faster we go; idle = none.
+	_dust.emitting = ratio > 0.05
+	_dust.amount_ratio = lerpf(0.25, 1.0, ratio)
+
+
+## Soft exhaust/road dust kicked up behind the rear wheel. Uses a round alpha
+## texture so the puffs are soft, small and faint - subtle, not blocky.
+func _build_dust() -> void:
+	_dust = GPUParticles3D.new()
+	_dust.amount = 16
+	_dust.lifetime = 0.5
+	_dust.emitting = false
+	_dust.local_coords = false   # puffs stay in the world as the bike moves on
+	_dust.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 4, 6))
+
+	var dpm := ParticleProcessMaterial.new()
+	dpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	dpm.emission_box_extents = Vector3(0.18, 0.03, 0.1)
+	dpm.direction = Vector3(0, 0.6, 1)          # up and a little backward
+	dpm.spread = 25.0
+	dpm.gravity = Vector3(0, -1.2, 0)
+	dpm.initial_velocity_min = 0.6
+	dpm.initial_velocity_max = 1.4
+	dpm.scale_min = 0.08
+	dpm.scale_max = 0.22
+	# Grow as they rise, and fade their alpha out over their lifetime.
+	dpm.scale_curve = _ramp_curve()
+	dpm.alpha_curve = _fade_curve()
+	_dust.process_material = dpm
+
+	var dq := QuadMesh.new()
+	dq.size = Vector2(0.5, 0.5)
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.78, 0.72, 0.6, 0.5)   # faint dusty tan
+	dm.albedo_texture = DUST_TEXTURE                # <-- soft round edge
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	dq.material = dm
+	_dust.draw_pass_1 = dq
+
+	_dust.position = Vector3(0.0, 0.12, 0.55)   # just behind/below the scooter
+	add_child(_dust)
+
+
+## A 0->1 rising curve (particles grow as they rise).
+func _ramp_curve() -> CurveTexture:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 0.6))
+	c.add_point(Vector2(1.0, 1.2))
+	var ct := CurveTexture.new()
+	ct.curve = c
+	return ct
+
+
+## A 1->0 alpha curve (particles fade out near the end of their life).
+func _fade_curve() -> CurveTexture:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 0.0))
+	c.add_point(Vector2(0.25, 1.0))
+	c.add_point(Vector2(1.0, 0.0))
+	var ct := CurveTexture.new()
+	ct.curve = c
+	return ct
 
 
 ## Load and seat the rider on the scooter. Does nothing (silently) until a
