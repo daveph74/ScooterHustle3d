@@ -136,6 +136,13 @@ const CROSSING_MIN_GAP := 9.0      # seconds between crossings (early game)
 const CROSSING_MAX_GAP := 16.0
 const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small = fair)
 
+# --- Camera & shake tuning -----------------------------------------------
+# Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
+const FOV_MIN := 72.0                    # camera FOV at base speed
+const FOV_MAX := 90.0                    # camera FOV at max speed (wider = faster-feel)
+const NEAR_MISS_SHAKE_STRENGTH := 0.22   # camera jolt on near miss
+const NEAR_MISS_SHAKE_DURATION := 0.20
+
 # --- Screen shake ---------------------------------------------------------
 var shake_strength := 0.0
 var shake_time := 0.0
@@ -1103,7 +1110,7 @@ func _update_camera(delta: float) -> void:
 
 	# Widen the field of view as we speed up = sense of speed.
 	var speed_ratio: float = clamp((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
-	camera.fov = lerp(72.0, 90.0, speed_ratio)
+	camera.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
 
 func _add_shake(strength: float, duration: float) -> void:
@@ -1127,7 +1134,7 @@ func _update_shake(delta: float) -> void:
 
 func _on_near_miss() -> void:
 	score_value += 25.0 * combo.multiplier()
-	_add_shake(0.22, 0.20)
+	_add_shake(NEAR_MISS_SHAKE_STRENGTH, NEAR_MISS_SHAKE_DURATION)
 	hud.flash_near_miss()
 	AudioManager.play_sfx("near_miss")
 	MissionManager.report("near_miss", 1)

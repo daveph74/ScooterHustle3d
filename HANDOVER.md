@@ -10,7 +10,7 @@
 ## 0. TL;DR / Current State
 
 - **Engine:** Godot **4.7** stable. GDScript only. No C#. No external Godot plugins required to run.
-- **Status:** Playable vertical slice. Menu → gameplay → game over → garage all work. Audio, 3D models, hills/bends, fair traffic, persistence all implemented and tested in-editor by the project owner. **Save v2** adds five engagement systems — daily missions, combo/streak, power-ups, cosmetics, random events — documented in **§13**.
+- **Status:** Polished vertical slice. Menu → gameplay → game over → garage all work. Audio, 3D models, hills/bends, fair traffic, persistence all implemented. **Save v2** adds five engagement systems. **Visual-polish pass (v3)** adds tropical atmosphere, districts, sidewalk props, road markings, camera effects, wind shader, world animation, and rounded UI theme — see §15.
 - **Platform target:** Mobile (Android), **portrait** 1080×1920, touch swipe controls (keyboard for desktop testing).
 - **Repo branch:** `claude/elegant-lamport-nv40yn`. There is a **draft PR #1** into `main` (which is an empty root commit). Everything is committed and pushed.
 - **Main scene:** `res://ui/MainMenu.tscn`.
@@ -381,6 +381,15 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 | Scenery density / spacing | `SCENERY_GAP` + the type-mix `roll` thresholds in `_spawn_scenery` |
 | Sidewalk width | `SIDEWALK_WIDTH` |
 | Lane debug overlay | `Game.DEBUG_LANES` |
+| FOV range (speed feel) | `FOV_MIN` / `FOV_MAX` in `Game.gd` (currently 72–90) |
+| Near-miss shake | `NEAR_MISS_SHAKE_STRENGTH` / `_DURATION` in `Game.gd` |
+| Wind sway intensity | `wind_strength` uniform in `shaders/wind.gdshader` |
+| Bird / cloud counts | `BIRD_COUNT` / `CLOUD_COUNT` in `Game.gd` |
+| Speed-line opacity | `LINE_COUNT`, alpha cap (0.12) in `ui/SpeedLines.gd` |
+| District length / blend | `Districts.DISTRICT_LENGTH` / `TRANSITION_BAND` |
+| Sidewalk clutter density | `randi() % 3 == 0` gate in `_make_road_segment` |
+| UI rounded-corner radius | `card_style(radius)` in `ui/UiTheme.gd` |
+| UI button colours | `COL_BTN_*` constants in `ui/UiTheme.gd` |
 
 Per-scooter feel: the `.tres` files (`speed`, `handling`). Swipe sensitivity:
 `SWIPE_MIN_PIXELS` in `Player.gd`. Audio volumes: `volume_db` in `AudioManager.gd`.
@@ -536,3 +545,140 @@ MissionManager`; `PowerUpManager` and `EventManager` are nodes in `Game.tscn`;
 - `*_FACES_BACK` — per-model 180° flip flags for imported vehicle orientation.
 - `HILL_DIR` / `BEND_DIR` — sign flips for the hill/bend direction.
 - `ModelUtil.instance_fitted` — drop any `.glb` in at the right size automatically.
+
+---
+
+## 15. Visual Polish Systems (added in v3)
+
+All systems below are **purely decorative** — none affect gameplay, lanes, spawning,
+difficulty, collision, or the `_safe_lane` guarantee.
+
+### 15.1 Atmosphere — `scenes/Game.tscn` + `scripts/Game.gd`
+
+**Sky/lighting:** `ProceduralSkyMaterial` tuned for a bright tropical afternoon
+(deep-blue top, warm horizon). Directional sun at warm `Color(1.0, 0.96, 0.86)`,
+energy 1.4. Soft shadows (directional_shadow_mode=2, max_distance=100 m).
+
+**Glow/fog:** Glow enabled (`glow_intensity=0.18, bloom=0.04, hdr_threshold=1.0`,
+levels 3-5 only). Depth fog enabled (`fog_density=0.0015`, warm-tinted). Both
+run on the Mobile renderer. Rain storms override fog density via `_set_rain()`.
+
+**Tonemap:** mode=2 (ACES Filmic), exposure=1.08, white=1.2.
+
+*Tuning:* Edit the `env` sub_resource in `scenes/Game.tscn` directly for
+glow/fog values. Sun color/energy also set in `_ready()` (overrides the .tscn
+value) — change both places.
+
+
+### 15.2 Districts — `systems/Districts.gd` + `scripts/Game.gd`
+
+Six Philippine districts cycle every 400 m with an 80 m blend band:
+
+| # | Name | Flavour |
+|---|------|---------|
+| 0 | Downtown | Dense landmarks, grey ground |
+| 1 | Barangay | Mix of churches/sari-sari, earthy green |
+| 2 | Residential | Mostly trees, soft green |
+| 3 | Provincial | Sparse road, warm dust |
+| 4 | Beach Road | Palms + petrol stops, sandy |
+| 5 | Fiesta | Dense landmarks, warm sunset |
+
+`Districts.pick_type(dist)` → `"tree"` / `"landmark"` / `"building"` with
+blended weights at transitions. `_update_district_atmosphere(delta)` lerps
+ground colour, ambient, sun, and (when not raining) fog colour each frame at
+rate `delta * 0.4`.
+
+*Tuning:* `Districts.DISTRICT_LENGTH`, `TRANSITION_BAND`, and per-district
+weight/colour values in `_districts` array. `_update_district_atmosphere`
+lerp rate (currently `delta * 0.4`).
+
+
+### 15.3 PropFactory — `systems/PropFactory.gd` + `scripts/Game.gd`
+
+`PropFactory.make(key, parent)` → Node3D:
+- If `res://models/custom/<key>.glb` exists, uses it via `ModelUtil.instance_fitted`.
+- Otherwise builds a lightweight primitive stand-in (box/cylinder geometry).
+
+Keys: `lamp-post`, `utility-pole`, `bench`, `flower-pot`, `trash-bin`,
+`traffic-cone`, `construction-barrier`, `street-sign`, `billboard`, `bus-stop`,
+`newspaper-stand`.
+
+**To swap in a real model:** drop `models/custom/<key>.glb` — no code changes needed.
+
+Lamp posts (2 per tile) and clutter props (~0.67 per tile side) are tile-parented
+so they scroll for free every frame via the road tile's transform. Their X positions
+are updated in `_scroll_road` to track the variable road width.
+
+*Tuning:* clutter spawn probability in `_make_road_segment`
+(`randi() % 3 == 0` → ~33% per side). Lamp-post X offset in `_scroll_road`
+(`road_edge + SIDEWALK_WIDTH * 0.85`).
+
+
+### 15.4 Road Surface Details — `scripts/Game.gd`
+
+Re-randomised each time a tile recycles (via `_add_road_details(segment)`):
+shoulder/edge lines, lane arrows (50% chance), manhole covers (40%), storm
+drains (35%), asphalt patches (45%), oil stains (30%). All are flat
+`MeshInstance3D` quads/cylinders, tile-parented, zero collision, no extra
+per-frame cost.
+
+*Tuning:* percentages in `_add_road_details`. Shoulder-line material colour in
+`_make_road_materials` (`_shoulder_material`).
+
+
+### 15.5 Camera Polish & Speed Effects — `scripts/Game.gd` + `vehicles/Player.gd` + `ui/SpeedLines.gd`
+
+- **Dynamic FOV:** `lerp(FOV_MIN, FOV_MAX, speed_ratio)` — values `FOV_MIN=72`,
+  `FOV_MAX=90` are named constants in `Game.gd`. Camera base transform
+  `(0, 2.6, 5.8)` is set in `scenes/Game.tscn`.
+- **Near-miss shake:** `NEAR_MISS_SHAKE_STRENGTH=0.22`, `NEAR_MISS_SHAKE_DURATION=0.20`
+  (named constants in `Game.gd`).
+- **Wheel dust:** `GPUParticles3D` in `Player.gd`, emission scaled by `speed_ratio` via
+  `set_speed_ratio(ratio)`. 24 particles, 0.6 s lifetime.
+- **Speed lines:** `ui/SpeedLines.gd` — CanvasLayer (layer=0, below HUD at layer 1),
+  16 `ColorRect` lines, fades in above 60% speed, max alpha 0.12.
+
+
+### 15.6 World Animation — `shaders/wind.gdshader` + `scripts/Game.gd`
+
+**Wind sway:** `_apply_wind_to_tree(root)` is called on every spawned tree. It
+recursively finds all `MeshInstance3D` nodes, creates a new `ShaderMaterial`
+with `shaders/wind.gdshader`, copies the original `albedo_color` and
+`albedo_texture`, and sets it as `material_override`. The shader displaces
+vertices horizontally proportional to `VERTEX.y`, driven by `TIME`. GPU-only,
+no per-frame GDScript cost per tree.
+
+*Tuning:* `wind_strength` uniform in `shaders/wind.gdshader` (`hint_range 0.0–0.3`,
+default `0.12`). Sway speed via the `1.5` frequency coefficient in the `sin()`.
+
+**Birds:** `BIRD_COUNT=3` billboard `MeshInstance3D` quads at y=14–22 m. Drift
+with `drift_x` metadata and fake-flap by oscillating `scale.y` with `elapsed`.
+Wrap at `DESPAWN_Z + 5`.
+
+**Clouds:** `CLOUD_COUNT=5` large semi-transparent billboard quads at y=28–46 m.
+Gentle x-drift. Wrap at `DESPAWN_Z + 20`.
+
+*Tuning:* `BIRD_COUNT`, `CLOUD_COUNT` in `Game.gd`. Flap rate (`5.8` in
+`_scroll_birds`). Cloud alpha via `albedo_color.a` in `_build_clouds`.
+
+
+### 15.7 UI Theme — `ui/UiTheme.gd` + all UI screens
+
+`UiTheme` is a `RefCounted` helper with static methods:
+- `card_style(radius)` → `StyleBoxFlat` dark translucent rounded card.
+- `btn_style(bg, border, radius)` → `StyleBoxFlat` for buttons.
+- `apply_buttons(root)` — walks the node tree and applies rounded button
+  styles to every `Button` found.
+- `apply_panels(root)` — walks the tree and applies card style to every
+  `PanelContainer`.
+
+All five UI screens call `UiTheme.apply_buttons/apply_panels` at the end of
+their node-building pass (`_ready()` or `_refresh()`).
+
+**Icons:** `ui/icons/coin.svg` (golden coin) and `ui/icons/distance.svg`
+(road arrow) are displayed in the HUD top bar beside the run-coins and score
+labels.
+
+*Tuning:* colour constants `COL_PANEL`, `COL_BTN_N/H/P`, `COL_BTN_BRD` at the
+top of `ui/UiTheme.gd`. Corner radius defaults in `card_style` (14) and
+`btn_style` (14).
