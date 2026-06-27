@@ -8,10 +8,14 @@
 [ext_resource type="Script" path="res://systems/EventManager.gd" id="6"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
-sky_top_color = Color(0.35, 0.6, 0.92, 1)
-sky_horizon_color = Color(0.72, 0.82, 0.9, 1)
-ground_horizon_color = Color(0.72, 0.82, 0.9, 1)
-ground_bottom_color = Color(0.5, 0.55, 0.5, 1)
+sky_top_color = Color(0.09, 0.28, 0.78, 1)
+sky_horizon_color = Color(0.88, 0.75, 0.52, 1)
+sky_curve = 0.15
+sky_energy_multiplier = 1.1
+ground_horizon_color = Color(0.78, 0.65, 0.45, 1)
+ground_bottom_color = Color(0.30, 0.38, 0.24, 1)
+sun_angle_max = 30.0
+sun_curve = 0.10
 
 [sub_resource type="Sky" id="sky"]
 sky_material = SubResource("sky_mat")
@@ -19,18 +23,48 @@ sky_material = SubResource("sky_mat")
 [sub_resource type="Environment" id="env"]
 background_mode = 2
 sky = SubResource("sky")
-ambient_light_source = 3
-ambient_light_energy = 1.0
+ambient_light_source = 2
+ambient_light_color = Color(1.0, 0.95, 0.85, 1)
+ambient_light_energy = 1.1
 tonemap_mode = 2
-fog_enabled = false
+tonemap_exposure = 1.08
+tonemap_white = 1.2
+glow_enabled = true
+glow_normalized = false
+glow_intensity = 0.18
+glow_strength = 1.0
+glow_bloom = 0.04
+glow_blend_mode = 0
+glow_hdr_threshold = 1.0
+glow_hdr_scale = 2.0
+glow_hdr_luminance_cap = 12.0
+glow_map_strength = 0.0
+glow_levels/1 = 0.0
+glow_levels/2 = 0.0
+glow_levels/3 = 1.0
+glow_levels/4 = 1.0
+glow_levels/5 = 1.0
+glow_levels/6 = 0.0
+glow_levels/7 = 0.0
+fog_enabled = true
+fog_light_color = Color(1.0, 0.88, 0.70, 1)
+fog_light_energy = 0.4
+fog_density = 0.0015
+fog_aerial_perspective = 0.0
+fog_sky_affect = 0.5
 
 [node name="Game" type="Node3D"]
 script = ExtResource("1")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
-light_energy = 1.2
+light_color = Color(1.0, 0.96, 0.86, 1)
+light_energy = 1.4
 shadow_enabled = true
+shadow_blur = 1.5
+directional_shadow_mode = 2
+directional_shadow_max_distance = 100.0
+directional_shadow_blend_splits = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")

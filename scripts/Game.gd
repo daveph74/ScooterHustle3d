@@ -168,6 +168,8 @@ func _ready() -> void:
 
 	# Aim the sun down and across so the boxes cast nice shadows.
 	sun.rotation_degrees = Vector3(-55, -35, 0)
+	sun.light_color = Color(1.0, 0.96, 0.86)
+	sun.light_energy = 1.4
 
 	# Faster scooters start the run faster.
 	var scooter := GameData.get_selected_scooter()
