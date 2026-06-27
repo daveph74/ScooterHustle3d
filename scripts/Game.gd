@@ -147,6 +147,10 @@ var _dash_material: StandardMaterial3D
 var _ground_material: StandardMaterial3D
 var _sidewalk_material: StandardMaterial3D
 var _curb_material: StandardMaterial3D
+var _arrow_material: StandardMaterial3D
+var _detail_material: StandardMaterial3D
+var _oil_material: StandardMaterial3D
+var _shoulder_material: StandardMaterial3D
 
 # Node references (filled in _ready). @onready waits until children exist.
 @onready var player: Player = $Player
@@ -313,6 +317,25 @@ func _make_road_materials() -> void:
 	_curb_material.albedo_color = Color(0.12, 0.12, 0.13)  # dark kerb lip
 	_curb_material.roughness = 1.0
 
+	_arrow_material = StandardMaterial3D.new()
+	_arrow_material.albedo_color = Color(0.90, 0.90, 0.88)
+	_arrow_material.emission_enabled = true
+	_arrow_material.emission = Color(0.08, 0.08, 0.08)
+
+	_detail_material = StandardMaterial3D.new()
+	_detail_material.albedo_color = Color(0.13, 0.13, 0.14)   # dark grey (manhole/drain)
+	_detail_material.roughness = 1.0
+
+	_oil_material = StandardMaterial3D.new()
+	_oil_material.albedo_color = Color(0.10, 0.10, 0.12)      # near-black oil stain
+	_oil_material.roughness = 0.4
+	_oil_material.metallic = 0.1
+
+	_shoulder_material = StandardMaterial3D.new()
+	_shoulder_material.albedo_color = Color(0.82, 0.75, 0.60)  # worn shoulder line
+	_shoulder_material.emission_enabled = true
+	_shoulder_material.emission = Color(0.04, 0.04, 0.04)
+
 
 ## Create the pool of road tiles once at startup.
 func _build_road() -> void:
@@ -414,7 +437,96 @@ func _make_road_segment() -> Node3D:
 			prop.set_meta("sidewalk_prop", true)
 			prop.set_meta("sidewalk_offset", randf_range(0.3, SIDEWALK_WIDTH - 0.5))
 
+	# Shoulder/edge lines — two MeshInstance3Ds (one per side), x updated in _scroll_road.
+	var shoulder_lines: Array = []
+	for s in [-1.0, 1.0]:
+		var sl := MeshInstance3D.new()
+		var slm := BoxMesh.new()
+		slm.size = Vector3(0.16, 0.015, SEGMENT_LENGTH + 0.08)
+		sl.mesh = slm
+		sl.material_override = _shoulder_material
+		sl.position.y = 0.012
+		sl.set_meta("side", s)
+		segment.add_child(sl)
+		shoulder_lines.append(sl)
+	segment.set_meta("shoulder_lines", shoulder_lines)
+
+	# Random road surface details (re-randomized on every tile recycle).
+	_add_road_details(segment)
+
 	return segment
+
+
+## Re-populate one road tile with random surface details (markings, stains, covers).
+## Called once on creation and again every time the tile recycles to the far end.
+func _add_road_details(segment: Node3D) -> void:
+	# Remove any details from a previous cycle.
+	for child in segment.get_children():
+		if child.has_meta("road_detail"):
+			child.queue_free()
+
+	# --- Lane arrow (50% chance) ---
+	if randf() < 0.5:
+		var arrow := MeshInstance3D.new()
+		var abm := BoxMesh.new()
+		abm.size = Vector3(0.55, 0.015, 1.1)
+		arrow.mesh = abm
+		arrow.material_override = _arrow_material
+		arrow.position = Vector3(randf_range(-1.0, 1.0), 0.013, randf_range(-1.0, 1.0))
+		arrow.set_meta("road_detail", true)
+		segment.add_child(arrow)
+
+	# --- Manhole cover (40% chance) ---
+	if randf() < 0.4:
+		var mh := MeshInstance3D.new()
+		var mhm := CylinderMesh.new()
+		mhm.top_radius = 0.42
+		mhm.bottom_radius = 0.42
+		mhm.height = 0.018
+		mhm.radial_segments = 12
+		mh.mesh = mhm
+		mh.material_override = _detail_material
+		var lane_offset := randf_range(-3.0, 3.0)
+		mh.position = Vector3(lane_offset, 0.01, randf_range(-1.2, 1.2))
+		mh.set_meta("road_detail", true)
+		segment.add_child(mh)
+
+	# --- Storm drain (35% chance) ---
+	if randf() < 0.35:
+		var dr := MeshInstance3D.new()
+		var drm := BoxMesh.new()
+		drm.size = Vector3(0.55, 0.015, 0.28)
+		dr.mesh = drm
+		dr.material_override = _detail_material
+		dr.position = Vector3(randf_range(-3.5, 3.5), 0.011, randf_range(-1.5, 1.5))
+		dr.set_meta("road_detail", true)
+		segment.add_child(dr)
+
+	# --- Asphalt patch (45% chance) ---
+	if randf() < 0.45:
+		var patch := MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(randf_range(0.8, 2.2), randf_range(0.6, 1.4))
+		patch.mesh = pm
+		var pm_mat := StandardMaterial3D.new()
+		pm_mat.albedo_color = Color(
+			randf_range(0.13, 0.22), randf_range(0.13, 0.22), randf_range(0.14, 0.23))
+		pm_mat.roughness = 1.0
+		patch.material_override = pm_mat
+		patch.position = Vector3(randf_range(-3.5, 3.5), 0.009, randf_range(-1.5, 1.5))
+		patch.set_meta("road_detail", true)
+		segment.add_child(patch)
+
+	# --- Oil stain (30% chance) ---
+	if randf() < 0.30:
+		var oil := MeshInstance3D.new()
+		var om := PlaneMesh.new()
+		om.size = Vector2(randf_range(0.5, 1.2), randf_range(0.4, 0.9))
+		oil.mesh = om
+		oil.material_override = _oil_material
+		oil.position = Vector3(randf_range(-3.0, 3.0), 0.008, randf_range(-1.5, 1.5))
+		oil.set_meta("road_detail", true)
+		segment.add_child(oil)
 
 
 ## Slide every road tile toward the player; recycle any that fall behind, and
@@ -427,6 +539,7 @@ func _scroll_road(amount: float) -> void:
 		if segment.position.z > DESPAWN_Z + SEGMENT_LENGTH:
 			# Jump it back to the far end to make the road feel endless.
 			segment.position.z -= total_length
+			_add_road_details(segment)   # re-randomize surface markings
 
 		var c := segment.position.z
 		var here := _path_offset(c)
@@ -470,6 +583,13 @@ func _scroll_road(amount: float) -> void:
 				var sp_off: float = child.get_meta("sidewalk_offset")
 				child.position.x = sp_sgn * (road_edge + sp_off)
 				child.position.y = 0.0
+
+		# Keep shoulder/edge lines flush to the road edge.
+		var shoulder_lines_arr: Array = segment.get_meta("shoulder_lines", [])
+		for sl in shoulder_lines_arr:
+			var sl_sgn: float = sl.get_meta("side")
+			sl.position.x = sl_sgn * road_edge * 0.985   # just inside the road edge
+			sl.position.y = 0.012
 
 		var dashes: Array = segment.get_meta("dashes")
 		var dividers: Array = cfg.dividers
