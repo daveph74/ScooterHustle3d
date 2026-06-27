@@ -13,8 +13,9 @@ const SAVE_PATH := "user://scooterhustle_save.json"
 ## Every scooter in the game, in display order. Loaded once at startup.
 var all_scooters: Array[ScooterData] = []
 
-## Persistent state (these three things get saved to disk):
+## Persistent state (these things get saved to disk):
 var total_coins: int = 0
+var best_score: int = 0               # highest run score (metres) ever achieved
 var unlocked_ids: Array = ["rusty"]   # the Rusty Scooter is always free
 var selected_id: String = "rusty"
 
@@ -106,6 +107,15 @@ func add_coins(amount: int) -> void:
 	save_game()
 
 
+## Record a run's score as the new best if it beats the stored one. Returns true
+## if it was a new record. Saving is left to the caller (it usually saves anyway).
+func record_score(value: int) -> bool:
+	if value > best_score:
+		best_score = value
+		return true
+	return false
+
+
 # --- Cosmetics ------------------------------------------------------------
 
 func is_cosmetic_owned(id: String) -> bool:
@@ -139,6 +149,7 @@ func save_game() -> void:
 	var data := {
 		"version": SAVE_VERSION,
 		"total_coins": total_coins,
+		"best_score": best_score,
 		"unlocked_ids": unlocked_ids,
 		"selected_id": selected_id,
 		"music_on": music_on,
@@ -168,6 +179,7 @@ func load_game() -> void:
 	# Older saves simply lack the newer keys; .get(..., default) migrates them.
 	version = int(parsed.get("version", 1))
 	total_coins = int(parsed.get("total_coins", 0))
+	best_score = int(parsed.get("best_score", 0))
 	unlocked_ids = parsed.get("unlocked_ids", ["rusty"])
 	selected_id = String(parsed.get("selected_id", "rusty"))
 	music_on = bool(parsed.get("music_on", true))

@@ -22,6 +22,9 @@ signal shielded
 # Set true by the PowerUpManager when a shield power-up is active. The next
 # traffic hit consumes it instead of ending the run.
 var shield_active := false
+# Translucent dome shown around the scooter while a shield is active.
+var _shield_bubble: MeshInstance3D
+var _shield_spin := 0.0
 
 # --- Lanes (driven by Game's RoadManager) ---------------------------------
 # World X of each lane centre on the CURRENT road section. Game pushes this
@@ -39,8 +42,12 @@ var alive := true
 # for near misses, so passively cruising past traffic doesn't count).
 var _since_lane_change := 999.0
 
-var _dust: GPUParticles3D
 var _speed_ratio: float = 0.0
+
+# Soft round dust texture (white with a radial alpha falloff) so the exhaust
+# puffs read as dust, not hard squares. Tinted dusty-tan in the material.
+const DUST_TEXTURE := preload("res://effects/dust.png")
+var _dust: GPUParticles3D
 
 # --- Visual model ---------------------------------------------------------
 # Custom "Pilipinas Hustle" scooter (generated on Meshy, optimised to ~30k tris
@@ -86,38 +93,8 @@ func _ready() -> void:
 	if scooter:
 		lane_change_speed = 7.0 * scooter.handling
 
-	# Wheel/exhaust dust emitter — sits just behind and below the scooter.
-	_dust = GPUParticles3D.new()
-	_dust.amount = 24
-	_dust.lifetime = 0.6
-	_dust.emitting = false
-	_dust.local_coords = false
-	_dust.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 4, 6))
-
-	var dpm := ParticleProcessMaterial.new()
-	dpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	dpm.emission_box_extents = Vector3(0.3, 0.05, 0.15)
-	dpm.direction = Vector3(0, 1, 0)
-	dpm.spread = 40.0
-	dpm.gravity = Vector3(0, -3.0, 0)
-	dpm.initial_velocity_min = 1.0
-	dpm.initial_velocity_max = 2.5
-	dpm.scale_min = 0.15
-	dpm.scale_max = 0.35
-	_dust.process_material = dpm
-
-	var dq := QuadMesh.new()
-	dq.size = Vector2(0.35, 0.35)
-	var dm := StandardMaterial3D.new()
-	dm.albedo_color = Color(0.75, 0.68, 0.55, 0.55)
-	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	dq.material = dm
-	_dust.draw_pass_1 = dq
-
-	_dust.position = Vector3(0.0, 0.15, 0.5)   # behind the scooter
-	add_child(_dust)
+	_build_dust()
+	_build_shield_bubble()
 
 	# Connect collisions. Because traffic and coins are also Area3D nodes,
 	# we listen for "area_entered".
@@ -129,8 +106,91 @@ func _ready() -> void:
 
 func set_speed_ratio(ratio: float) -> void:
 	_speed_ratio = ratio
+	# Kick out more dust the faster we go; idle = none.
 	_dust.emitting = ratio > 0.05
-	_dust.amount_ratio = lerpf(0.1, 1.0, ratio)
+	_dust.amount_ratio = lerpf(0.25, 1.0, ratio)
+
+
+## Soft exhaust/road dust kicked up behind the rear wheel. Uses a round alpha
+## texture so the puffs are soft, small and faint - subtle, not blocky.
+func _build_dust() -> void:
+	_dust = GPUParticles3D.new()
+	_dust.amount = 16
+	_dust.lifetime = 0.5
+	_dust.emitting = false
+	_dust.local_coords = false   # puffs stay in the world as the bike moves on
+	_dust.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 4, 6))
+
+	var dpm := ParticleProcessMaterial.new()
+	dpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	dpm.emission_box_extents = Vector3(0.18, 0.03, 0.1)
+	dpm.direction = Vector3(0, 0.6, 1)          # up and a little backward
+	dpm.spread = 25.0
+	dpm.gravity = Vector3(0, -1.2, 0)
+	dpm.initial_velocity_min = 0.6
+	dpm.initial_velocity_max = 1.4
+	dpm.scale_min = 0.08
+	dpm.scale_max = 0.22
+	# Grow as they rise, and fade their alpha out over their lifetime.
+	dpm.scale_curve = _ramp_curve()
+	dpm.alpha_curve = _fade_curve()
+	_dust.process_material = dpm
+
+	var dq := QuadMesh.new()
+	dq.size = Vector2(0.5, 0.5)
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.78, 0.72, 0.6, 0.5)   # faint dusty tan
+	dm.albedo_texture = DUST_TEXTURE                # <-- soft round edge
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	dq.material = dm
+	_dust.draw_pass_1 = dq
+
+	_dust.position = Vector3(0.0, 0.12, 0.55)   # just behind/below the scooter
+	add_child(_dust)
+
+
+## A glowing translucent dome around the scooter, shown while a shield is active
+## so the player can see they're protected. Hidden until shield_active is set.
+func _build_shield_bubble() -> void:
+	_shield_bubble = MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.15
+	sphere.height = 2.3
+	_shield_bubble.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.65, 1.0, 0.28)      # translucent blue
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED        # see both sides of the dome
+	mat.emission_enabled = true
+	mat.emission = Color(0.3, 0.6, 1.0) * 0.5
+	_shield_bubble.material_override = mat
+	_shield_bubble.position.y = 0.9
+	_shield_bubble.visible = false
+	add_child(_shield_bubble)
+
+
+## A 0->1 rising curve (particles grow as they rise).
+func _ramp_curve() -> CurveTexture:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 0.6))
+	c.add_point(Vector2(1.0, 1.2))
+	var ct := CurveTexture.new()
+	ct.curve = c
+	return ct
+
+
+## A 1->0 alpha curve (particles fade out near the end of their life).
+func _fade_curve() -> CurveTexture:
+	var c := Curve.new()
+	c.add_point(Vector2(0.0, 0.0))
+	c.add_point(Vector2(0.25, 1.0))
+	c.add_point(Vector2(1.0, 0.0))
+	var ct := CurveTexture.new()
+	ct.curve = c
+	return ct
 
 
 ## Load and seat the rider on the scooter. Does nothing (silently) until a
@@ -181,6 +241,14 @@ func _process(delta: float) -> void:
 	# Lean the scooter into the turn for a bit of flavour.
 	var lean := (target_x - position.x) * 0.25
 	rotation.z = lerp(rotation.z, lean, clamp(10.0 * delta, 0.0, 1.0))
+
+	# Show the shield dome while a shield is active, with a gentle spin + pulse.
+	_shield_bubble.visible = shield_active
+	if shield_active:
+		_shield_spin += delta
+		_shield_bubble.rotation.y = _shield_spin * 1.5
+		var pulse := 1.0 + sin(_shield_spin * 4.0) * 0.04
+		_shield_bubble.scale = Vector3(pulse, pulse, pulse)
 
 
 ## Move one lane left (dir = -1) or right (dir = +1), clamped to the road.

@@ -17,6 +17,7 @@ const TRAFFIC_SCENE := preload("res://traffic/TrafficVehicle.tscn")
 const COIN_SCENE := preload("res://scenes/Coin.tscn")
 const POWERUP_SCRIPT := preload("res://powerups/PowerUp.gd")
 const PEDESTRIAN_SCRIPT := preload("res://scenes/Pedestrian.gd")
+const OBSTACLE_SCRIPT := preload("res://scenes/Obstacle.gd")
 const SPEED_LINES_SCRIPT := preload("res://ui/SpeedLines.gd")
 const WIND_SHADER: Shader = preload("res://shaders/wind.gdshader")
 
@@ -28,6 +29,7 @@ const BUILDING_MODELS := [
 	preload("res://models/city/building-small-c.glb"),
 	preload("res://models/city/building-small-d.glb"),
 	preload("res://models/city/building-garage.glb"),
+	preload("res://models/custom/apartment.glb"),
 ]
 const TREE_MODELS := [
 	preload("res://models/custom/palm-tree.glb"),
@@ -45,6 +47,7 @@ const LANDMARK_MODELS := [
 	preload("res://models/custom/711.glb"),
 	preload("res://models/custom/chowking.glb"),
 	preload("res://models/custom/lto.glb"),
+	preload("res://models/custom/pharmacy.glb"),
 ]
 # Existing models repurposed as decorative ambient life on the sidewalk.
 const PARKED_SCOOTER_MODEL := preload("res://models/custom/scooter.glb")
@@ -136,6 +139,19 @@ const CROSSING_MIN_GAP := 9.0      # seconds between crossings (early game)
 const CROSSING_MAX_GAP := 16.0
 const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small = fair)
 
+# --- Lane closures (PH "the outer lane just ends, merge or crash") ----------
+# A run of cones funnels into a construction-barrier wall blocking ONE outer
+# lane; the player must merge inward. The centre lane is forced open for the
+# duration so the road is always passable.
+var closure_timer := 0.0
+var _closed_lane := -1             # outer lane currently closed (-1 = none)
+var _closure_until := 0.0          # distance at which the closure has fully passed
+const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
+const CLOSURE_MIN_GAP := 11.0      # seconds between closures
+const CLOSURE_MAX_GAP := 20.0
+const CLOSURE_LENGTH := 20.0       # how long the dug-up stretch is (metres)
+var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
+
 # --- Camera & shake tuning -----------------------------------------------
 # Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
 const FOV_MIN := 72.0                    # camera FOV at base speed
@@ -186,7 +202,9 @@ var _env: Environment
 var _speed_lines: Node
 
 const BIRD_COUNT  := 3
-const CLOUD_COUNT := 5
+# Clouds were flat billboard quads that read as grey smears in the sky; disabled.
+# Bump back above 0 only if you replace them with a proper cloud sprite/model.
+const CLOUD_COUNT := 0
 var _birds:  Array = []
 var _clouds: Array = []
 
@@ -229,7 +247,7 @@ func _ready() -> void:
 
 	# Prepare the UI.
 	game_over.hide_screen()
-	hud.set_total_coins(GameData.total_coins)
+	hud.set_best(GameData.best_score)
 	hud.set_run_coins(0)
 	hud.set_score(0)
 
@@ -308,6 +326,15 @@ func _process(delta: float) -> void:
 			var gap := randf_range(CROSSING_MIN_GAP, CROSSING_MAX_GAP)
 			crossing_timer = maxf(CROSSING_MIN_GAP, gap - distance * 0.001)
 			_spawn_crossing()
+
+	# Lane closures: an outer lane ends behind a barrier, merge or crash.
+	if _closed_lane >= 0 and distance > _closure_until:
+		_closed_lane = -1   # the closure has fully scrolled past; reopen the lane
+	if distance >= CLOSURE_FIRST_AT and _closed_lane < 0:
+		closure_timer -= delta
+		if closure_timer <= 0.0:
+			closure_timer = randf_range(CLOSURE_MIN_GAP, CLOSURE_MAX_GAP)
+			_spawn_lane_closure()
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
@@ -454,12 +481,15 @@ func _make_road_segment() -> Node3D:
 	segment.set_meta("lamp_posts", lamp_posts)
 
 	# Random sidewalk clutter (bench / bin / pot / cone — 0 or 1 per tile side).
-	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone"]
+	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone", "construction-barrier"]
 	for s in [-1.0, 1.0]:
 		if randi() % 3 == 0:   # ~33% chance each side
 			var key: String = clutter_keys[randi() % clutter_keys.size()]
 			var prop := _prop_factory.make(key, segment)
 			prop.set_meta("side", s)
+			# Turn the prop so its long axis runs ALONG the kerb (not across the
+			# road) and faces the road - otherwise benches/barriers sit sideways.
+			prop.rotation_degrees.y = 90.0 if s < 0.0 else -90.0
 			# Position along the tile (random z within the tile, on the sidewalk).
 			prop.position.z = randf_range(-SEGMENT_LENGTH * 0.35, SEGMENT_LENGTH * 0.35)
 			# X will be updated in _scroll_road like the sidewalks. Store base offset.
@@ -497,19 +527,14 @@ func _add_road_details(segment: Node3D) -> void:
 
 	var detail_nodes: Array = []
 
-	# --- Lane arrow (50% chance) ---
-	if randf() < 0.5:
-		var arrow := MeshInstance3D.new()
-		var abm := BoxMesh.new()
-		abm.size = Vector3(0.55, 0.015, 1.1)
-		arrow.mesh = abm
-		arrow.material_override = _arrow_material
-		arrow.position = Vector3(randf_range(-1.0, 1.0), 0.013, randf_range(-1.0, 1.0))
-		segment.add_child(arrow)
-		detail_nodes.append(arrow)
+	# (Lane arrows removed — the plain white box read as a stray block in the lane.)
 
-	# --- Manhole cover (40% chance) ---
-	if randf() < 0.4:
+	# --- Manhole cover (occasional, kept near the road edge) ---
+	# Dark blobs in the driving lanes read as potholes/obstacles, so we keep only
+	# the recognisable round manhole, rarely, and push it toward the kerb so the
+	# centre lanes stay clean. (Asphalt patches / oil stains / storm drains were
+	# removed for the same reason.)
+	if randf() < 0.18:
 		var mh := MeshInstance3D.new()
 		var mhm := CylinderMesh.new()
 		mhm.top_radius = 0.42
@@ -519,48 +544,12 @@ func _add_road_details(segment: Node3D) -> void:
 		mh.mesh = mhm
 		mh.material_override = _detail_material
 		var asphalt_mi: MeshInstance3D = segment.get_meta("asphalt")
-		var road_half: float = (asphalt_mi.scale.x * MAX_ROAD_WIDTH) * 0.5 * 0.85
-		var lane_offset := randf_range(-road_half, road_half)
+		var road_half: float = (asphalt_mi.scale.x * MAX_ROAD_WIDTH) * 0.5
+		# Outer third of the road only (near the shoulder, not the racing line).
+		var lane_offset: float = (1.0 if randf() < 0.5 else -1.0) * randf_range(road_half * 0.6, road_half * 0.9)
 		mh.position = Vector3(lane_offset, 0.01, randf_range(-1.2, 1.2))
 		segment.add_child(mh)
 		detail_nodes.append(mh)
-
-	# --- Storm drain (35% chance) ---
-	if randf() < 0.35:
-		var dr := MeshInstance3D.new()
-		var drm := BoxMesh.new()
-		drm.size = Vector3(0.55, 0.015, 0.28)
-		dr.mesh = drm
-		dr.material_override = _detail_material
-		dr.position = Vector3(randf_range(-3.5, 3.5), 0.011, randf_range(-1.5, 1.5))
-		segment.add_child(dr)
-		detail_nodes.append(dr)
-
-	# --- Asphalt patch (45% chance) ---
-	if randf() < 0.45:
-		var patch := MeshInstance3D.new()
-		var pm := PlaneMesh.new()
-		pm.size = Vector2(randf_range(0.8, 2.2), randf_range(0.6, 1.4))
-		patch.mesh = pm
-		var pm_mat := StandardMaterial3D.new()
-		pm_mat.albedo_color = Color(
-			randf_range(0.13, 0.22), randf_range(0.13, 0.22), randf_range(0.14, 0.23))
-		pm_mat.roughness = 1.0
-		patch.material_override = pm_mat
-		patch.position = Vector3(randf_range(-3.5, 3.5), 0.009, randf_range(-1.5, 1.5))
-		segment.add_child(patch)
-		detail_nodes.append(patch)
-
-	# --- Oil stain (30% chance) ---
-	if randf() < 0.30:
-		var oil := MeshInstance3D.new()
-		var om := PlaneMesh.new()
-		om.size = Vector2(randf_range(0.5, 1.2), randf_range(0.4, 0.9))
-		oil.mesh = om
-		oil.material_override = _oil_material
-		oil.position = Vector3(randf_range(-3.0, 3.0), 0.008, randf_range(-1.5, 1.5))
-		segment.add_child(oil)
-		detail_nodes.append(oil)
 
 	segment.set_meta("detail_nodes", detail_nodes)
 
@@ -681,14 +670,21 @@ func _spawn_traffic_at(z: float) -> void:
 	var positions: Array = cfg.positions
 	var types := ["jeepney", "tricycle", "bus", "car"]
 
-	# Keep the safe lane valid for this section's lane count.
-	_safe_lane = clampi(_safe_lane, 0, count - 1)
+	# During a lane closure the centre lane is the guaranteed-open path, and we
+	# never spawn traffic in the closed (barriered) lane.
+	var closure_active := _closed_lane >= 0 and _closed_lane < count
+	if closure_active:
+		_safe_lane = 1
+	else:
+		_safe_lane = clampi(_safe_lane, 0, count - 1)
 
-	# Lanes that are not the guaranteed-open one.
+	# Lanes that are neither the guaranteed-open one nor the closed lane.
 	var other_lanes: Array = []
 	for lane in range(count):
-		if lane != _safe_lane:
+		if lane != _safe_lane and lane != _closed_lane:
 			other_lanes.append(lane)
+	if other_lanes.is_empty():
+		return   # nothing left to block (the safe lane stays open)
 
 	# On a 2-lane road only ever block ONE lane (the other stays open). On wider
 	# roads, later in the run, sometimes block ALL non-safe lanes. The safe lane
@@ -711,8 +707,9 @@ func _spawn_traffic_at(z: float) -> void:
 		vehicle.drive_speed = traffic_speed
 
 	# Shift the open lane by at most one, only when more than one lane is open,
-	# so the player can always follow it with a single swipe.
-	if not block_all:
+	# so the player can always follow it with a single swipe. (Pinned to centre
+	# during a closure.)
+	if not block_all and not closure_active:
 		_safe_lane = clampi(_safe_lane + (randi() % 3 - 1), 0, count - 1)
 
 
@@ -861,8 +858,114 @@ func _scroll_crossings(amount: float) -> void:
 	for mark in crossing_container.get_children():
 		mark.position.z += amount
 		_apply_path(mark)
-		if mark.position.z > DESPAWN_Z:
+		# Long flat surfaces (the construction patch) pitch/yaw to the road's
+		# slope at their position so they hug the hills/bends instead of lifting
+		# off at the ends. (Set via a "tilt_len" meta = the surface's length.)
+		var tl: float = mark.get_meta("tilt_len", 0.0)
+		if tl > 0.0:
+			var c: float = mark.position.z
+			var half := tl * 0.5
+			var near := _path_offset(c + half)
+			var far := _path_offset(c - half)
+			mark.rotation.x = atan2(far.y - near.y, tl)
+			mark.rotation.y = atan2(near.x - far.x, tl)
+		# Long surfaces set a bigger despawn_z so they don't vanish while a chunk
+		# is still in view.
+		var dz: float = mark.get_meta("despawn_z", DESPAWN_Z)
+		if mark.position.z > dz:
 			mark.queue_free()
+
+
+# ==========================================================================
+#  LANE CLOSURES  ("the outer lane just ends - merge or crash")
+# ==========================================================================
+
+## Close one OUTER lane: a run of cones funnels into a construction-barrier wall
+## that blocks the lane. The player must merge inward before reaching the wall.
+## The centre lane is forced open for the whole closure, so it's always passable.
+## The cone/barrier obstacles live in traffic_container (so they scroll, collide
+## and despawn like traffic) and are static (drive_speed 0).
+func _spawn_lane_closure() -> void:
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return
+	var count: int = cfg.count
+	if count < 3:
+		return   # need a spare outer lane to close while keeping the road open
+	var positions: Array = cfg.positions
+
+	# Pick an outer lane (leftmost or rightmost) and pin the centre lane open.
+	_closed_lane = 0 if randf() < 0.5 else count - 1
+	_safe_lane = 1
+	_closure_until = distance + 210.0   # ~a full SPAWN_Z -> DESPAWN_Z pass
+	var lane_x: float = positions[_closed_lane]
+	var lane_w: float = RoadManager.LANE_WIDTH
+
+	# The barrier wall faces the player at the NEAR end of the closure (reached
+	# first); the dug-up road stretches behind it toward the horizon.
+	var wall_z := SPAWN_Z + CLOSURE_LENGTH
+
+	# Clear any traffic already sitting in the dug-up part of the closing lane
+	# (it's far ahead, so removal is unseen) - otherwise a vehicle drives over
+	# the dirt and through the barriers, which looks like a bug.
+	for v in traffic_container.get_children():
+		if v is TrafficVehicle and v.position.z <= wall_z + 8.0 \
+				and absf(v.get_meta("bx", 999.0) - lane_x) < 1.0:
+			v.queue_free()
+	# Same for coins already in the closing lane, so none sit on the dirt.
+	for c in coin_container.get_children():
+		if c.position.z <= wall_z + 8.0 and absf(c.get_meta("bx", 999.0) - lane_x) < 1.0:
+			c.queue_free()
+
+	# Torn-up "under construction" dirt road filling the closed lane behind the
+	# barrier (visual only; scrolls with the world via crossing_container).
+	var surf := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(lane_w * 0.92, CLOSURE_LENGTH)
+	surf.mesh = pm
+	surf.material_override = _get_construction_material()
+	crossing_container.add_child(surf)
+	surf.position = Vector3(lane_x, 0.013, SPAWN_Z + CLOSURE_LENGTH * 0.5)
+	surf.set_meta("bx", lane_x)
+	surf.set_meta("by", 0.013)
+	surf.set_meta("despawn_z", DESPAWN_Z + CLOSURE_LENGTH * 0.5 + 4.0)
+	surf.set_meta("tilt_len", CLOSURE_LENGTH)   # hug the road's slope
+
+	# The barrier wall that ends the lane (collider spans the lane - no squeezing
+	# past). It's a normal "traffic" obstacle, so hitting it crashes you.
+	var wall := OBSTACLE_SCRIPT.new()
+	wall.setup(_prop_factory, "construction-barrier", Vector3(lane_w, 1.0, 0.6))
+	traffic_container.add_child(wall)
+	wall.position = Vector3(lane_x, 0.0, wall_z)
+	wall.set_meta("bx", lane_x)
+	wall.set_meta("by", 0.0)
+
+	# A couple more barriers lining the dug-up stretch behind the wall for the
+	# construction-zone look (the player never reaches them - they merge first).
+	for i in range(2):
+		var b := OBSTACLE_SCRIPT.new()
+		b.setup(_prop_factory, "construction-barrier", Vector3(lane_w * 0.9, 1.0, 0.6))
+		traffic_container.add_child(b)
+		var bz := wall_z - 12.0 - i * 12.0
+		b.position = Vector3(lane_x, 0.0, bz)
+		b.set_meta("bx", lane_x)
+		b.set_meta("by", 0.0)
+
+
+## Dirt/rubble surface for a closed (under-construction) lane. Built once. Uses a
+## tiled noise texture so it reads as real dug-up ground, not a flat slab.
+func _get_construction_material() -> StandardMaterial3D:
+	if _construction_material == null:
+		_construction_material = StandardMaterial3D.new()
+		_construction_material.roughness = 1.0
+		if ResourceLoader.exists("res://effects/dirt.png"):
+			_construction_material.albedo_texture = load("res://effects/dirt.png")
+			# Tile the texture down the strip so it isn't stretched.
+			var reps: float = CLOSURE_LENGTH / (RoadManager.LANE_WIDTH * 0.92)
+			_construction_material.uv1_scale = Vector3(1.0, reps, 0.0)
+		else:
+			_construction_material.albedo_color = Color(0.42, 0.32, 0.18)  # fallback brown
+	return _construction_material
 
 
 # ==========================================================================
@@ -1058,6 +1161,7 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 			ambient_model = PARKED_JEEPNEY_MODEL
 		else:
 			ambient_model = AMBIENT_PERSON_MODEL
+		var is_vehicle := r2 < 0.75   # scooter or jeepney (the person is not)
 		var ambient := ModelUtil.instance_fitted(scenery_container, ambient_model,
 			Vector3(2, 1.8, 2), "height", 0.0)
 		# Place beside the main prop, slightly closer to the road.
@@ -1066,9 +1170,15 @@ func _spawn_scenery(side: float, wall_z: float) -> float:
 			0.0, center_z + randf_range(-depth * 0.3, depth * 0.3))
 		ambient.set_meta("bx", ambient.position.x)
 		ambient.set_meta("by", 0.0)
-		# Face the road (random slight variation).
-		var af := 0.0 if side < 0.0 else 180.0
-		ambient.rotation_degrees.y = af + randf_range(-15.0, 15.0)
+		if is_vehicle:
+			# A parked vehicle sits PARALLEL to the road, facing the way traffic
+			# flows (yaw 270, like moving traffic), occasionally the other way.
+			var heading := 270.0 if randf() < 0.7 else 90.0
+			ambient.rotation_degrees.y = heading + randf_range(-5.0, 5.0)
+		else:
+			# A person stands FACING the road (auto-flip per side).
+			var af := 0.0 if side < 0.0 else 180.0
+			ambient.rotation_degrees.y = af + randf_range(-15.0, 15.0)
 
 	return wall_z - depth - SCENERY_GAP
 
@@ -1313,6 +1423,11 @@ func _on_player_crashed() -> void:
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)
+
+	# Record a new best score (persisted) and update the HUD badge.
+	if GameData.record_score(score):
+		GameData.save_game()
+		hud.set_best(GameData.best_score)
 
 	# Record run-based mission progress, then persist it once.
 	MissionManager.report("distance", int(distance))
