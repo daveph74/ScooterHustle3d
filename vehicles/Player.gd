@@ -22,6 +22,9 @@ signal shielded
 # Set true by the PowerUpManager when a shield power-up is active. The next
 # traffic hit consumes it instead of ending the run.
 var shield_active := false
+# Translucent dome shown around the scooter while a shield is active.
+var _shield_bubble: MeshInstance3D
+var _shield_spin := 0.0
 
 # --- Lanes (driven by Game's RoadManager) ---------------------------------
 # World X of each lane centre on the CURRENT road section. Game pushes this
@@ -91,6 +94,7 @@ func _ready() -> void:
 		lane_change_speed = 7.0 * scooter.handling
 
 	_build_dust()
+	_build_shield_bubble()
 
 	# Connect collisions. Because traffic and coins are also Area3D nodes,
 	# we listen for "area_entered".
@@ -145,6 +149,27 @@ func _build_dust() -> void:
 
 	_dust.position = Vector3(0.0, 0.12, 0.55)   # just behind/below the scooter
 	add_child(_dust)
+
+
+## A glowing translucent dome around the scooter, shown while a shield is active
+## so the player can see they're protected. Hidden until shield_active is set.
+func _build_shield_bubble() -> void:
+	_shield_bubble = MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.15
+	sphere.height = 2.3
+	_shield_bubble.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.65, 1.0, 0.28)      # translucent blue
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED        # see both sides of the dome
+	mat.emission_enabled = true
+	mat.emission = Color(0.3, 0.6, 1.0) * 0.5
+	_shield_bubble.material_override = mat
+	_shield_bubble.position.y = 0.9
+	_shield_bubble.visible = false
+	add_child(_shield_bubble)
 
 
 ## A 0->1 rising curve (particles grow as they rise).
@@ -216,6 +241,14 @@ func _process(delta: float) -> void:
 	# Lean the scooter into the turn for a bit of flavour.
 	var lean := (target_x - position.x) * 0.25
 	rotation.z = lerp(rotation.z, lean, clamp(10.0 * delta, 0.0, 1.0))
+
+	# Show the shield dome while a shield is active, with a gentle spin + pulse.
+	_shield_bubble.visible = shield_active
+	if shield_active:
+		_shield_spin += delta
+		_shield_bubble.rotation.y = _shield_spin * 1.5
+		var pulse := 1.0 + sin(_shield_spin * 4.0) * 0.04
+		_shield_bubble.scale = Vector3(pulse, pulse, pulse)
 
 
 ## Move one lane left (dir = -1) or right (dir = +1), clamped to the road.
