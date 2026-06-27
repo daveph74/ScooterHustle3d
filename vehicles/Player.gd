@@ -39,7 +39,6 @@ var alive := true
 # for near misses, so passively cruising past traffic doesn't count).
 var _since_lane_change := 999.0
 
-var _dust: GPUParticles3D
 var _speed_ratio: float = 0.0
 
 # --- Visual model ---------------------------------------------------------
@@ -86,39 +85,6 @@ func _ready() -> void:
 	if scooter:
 		lane_change_speed = 7.0 * scooter.handling
 
-	# Wheel/exhaust dust emitter — sits just behind and below the scooter.
-	_dust = GPUParticles3D.new()
-	_dust.amount = 24
-	_dust.lifetime = 0.6
-	_dust.emitting = false
-	_dust.local_coords = false
-	_dust.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 4, 6))
-
-	var dpm := ParticleProcessMaterial.new()
-	dpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	dpm.emission_box_extents = Vector3(0.3, 0.05, 0.15)
-	dpm.direction = Vector3(0, 1, 0)
-	dpm.spread = 40.0
-	dpm.gravity = Vector3(0, -3.0, 0)
-	dpm.initial_velocity_min = 1.0
-	dpm.initial_velocity_max = 2.5
-	dpm.scale_min = 0.15
-	dpm.scale_max = 0.35
-	_dust.process_material = dpm
-
-	var dq := QuadMesh.new()
-	dq.size = Vector2(0.35, 0.35)
-	var dm := StandardMaterial3D.new()
-	dm.albedo_color = Color(0.75, 0.68, 0.55, 0.55)
-	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	dq.material = dm
-	_dust.draw_pass_1 = dq
-
-	_dust.position = Vector3(0.0, 0.15, 0.5)   # behind the scooter
-	add_child(_dust)
-
 	# Connect collisions. Because traffic and coins are also Area3D nodes,
 	# we listen for "area_entered".
 	area_entered.connect(_on_area_entered)
@@ -129,8 +95,6 @@ func _ready() -> void:
 
 func set_speed_ratio(ratio: float) -> void:
 	_speed_ratio = ratio
-	_dust.emitting = ratio > 0.05
-	_dust.amount_ratio = lerpf(0.1, 1.0, ratio)
 
 
 ## Load and seat the rider on the scooter. Does nothing (silently) until a
