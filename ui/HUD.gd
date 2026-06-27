@@ -11,7 +11,7 @@ extends CanvasLayer
 
 var _run_label: Label
 var _score_label: Label
-var _total_label: Label
+var _best_label: Label
 var _near_miss_label: Label
 var _combo_label: Label
 var _powerup_box: VBoxContainer
@@ -23,6 +23,8 @@ var _debug_label: Label   # only used when Game.DEBUG_LANES is true
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
+const SAFE_PAD := 18.0   # side inset from the screen edge (clears rounded corners)
+const SAFE_TOP := 30.0   # top inset (clears notches / status bar)
 
 
 func _ready() -> void:
@@ -30,47 +32,49 @@ func _ready() -> void:
 	# pause menu still respond (the gameplay nodes stay paused).
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# A bar pinned across the top of the screen holding the three counters.
-	# Right inset leaves room for the pause button in the top-right corner.
-	var bar := HBoxContainer.new()
-	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_left = 24
-	bar.offset_right = -100
-	bar.offset_top = 36
-	add_child(bar)
+	# --- Top HUD badges (rounded, readable over the scene) -----------------
+	# Built as three content-sized PanelContainers anchored to the top corners /
+	# centre, with safe-area padding. They auto-scale with the project's
+	# canvas_items stretch, so they're crisp on any portrait phone.
 
-	_run_label = _make_label("Coins: 0", HORIZONTAL_ALIGNMENT_LEFT)
-	_score_label = _make_label("0 m", HORIZONTAL_ALIGNMENT_CENTER)
-	_total_label = _make_label("Total: 0", HORIZONTAL_ALIGNMENT_RIGHT)
-
-	# Coin icon + run coins label wrapped in a small HBox.
-	var coin_icon_row := HBoxContainer.new()
-	coin_icon_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	coin_icon_row.add_theme_constant_override("separation", 6)
+	# Top-left: coin icon + this-run coin count.
+	var coin_badge := _make_badge()
+	coin_badge.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	coin_badge.position = Vector2(SAFE_PAD, SAFE_TOP)
+	add_child(coin_badge)
+	var coin_row := HBoxContainer.new()
+	coin_row.add_theme_constant_override("separation", 8)
+	coin_badge.add_child(coin_row)
 	var coin_icon := TextureRect.new()
 	coin_icon.texture = load("res://ui/icons/coin.svg")
-	coin_icon.custom_minimum_size = Vector2(26, 26)
+	coin_icon.custom_minimum_size = Vector2(30, 30)
 	coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin_icon_row.add_child(coin_icon)
-	_run_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	coin_icon_row.add_child(_run_label)
-	bar.add_child(coin_icon_row)
+	coin_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	coin_row.add_child(coin_icon)
+	_run_label = _make_label("0", HORIZONTAL_ALIGNMENT_LEFT)
+	_run_label.add_theme_font_size_override("font_size", 30)
+	coin_row.add_child(_run_label)
 
-	# Distance icon + score label wrapped in a small HBox.
-	var dist_icon_row := HBoxContainer.new()
-	dist_icon_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dist_icon_row.add_theme_constant_override("separation", 6)
-	var dist_icon := TextureRect.new()
-	dist_icon.texture = load("res://ui/icons/distance.svg")
-	dist_icon.custom_minimum_size = Vector2(22, 22)
-	dist_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	dist_icon_row.add_child(dist_icon)
-	_score_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dist_icon_row.add_child(_score_label)
-	bar.add_child(dist_icon_row)
+	# Top-centre: the prominent run score (distance x combo, in metres).
+	var score_badge := _make_badge()
+	score_badge.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	score_badge.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	score_badge.position.y = SAFE_TOP - 4
+	add_child(score_badge)
+	_score_label = _make_label("0 m", HORIZONTAL_ALIGNMENT_CENTER)
+	_score_label.add_theme_font_size_override("font_size", 42)
+	score_badge.add_child(_score_label)
 
-	_total_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.add_child(_total_label)
+	# Top-right: best score, sitting just left of the pause button.
+	var best_badge := _make_badge()
+	best_badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	best_badge.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	best_badge.offset_right = -96
+	best_badge.offset_top = SAFE_TOP
+	add_child(best_badge)
+	_best_label = _make_label("Best: 0 m", HORIZONTAL_ALIGNMENT_RIGHT)
+	_best_label.add_theme_font_size_override("font_size", 24)
+	best_badge.add_child(_best_label)
 
 	# A big "NEAR MISS!" flash in the centre of the screen, hidden until used.
 	_near_miss_label = _make_label("NEAR MISS!", HORIZONTAL_ALIGNMENT_CENTER)
@@ -223,7 +227,16 @@ func _make_label(text: String, align: int) -> Label:
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
 	label.add_theme_constant_override("outline_size", 6)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	return label
+
+
+## A rounded translucent badge (reuses UiTheme's card style) that sizes to its
+## content - used behind each top-HUD counter so it reads over the scene.
+func _make_badge() -> PanelContainer:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", UiTheme.card_style(16))
+	return p
 
 
 # --- Public API used by Game.gd -------------------------------------------
@@ -233,11 +246,18 @@ func set_score(value: int) -> void:
 
 
 func set_run_coins(value: int) -> void:
-	_run_label.text = "Coins: " + str(value)
+	# The coin icon already labels it, so just the number.
+	_run_label.text = str(value)
 
 
-func set_total_coins(value: int) -> void:
-	_total_label.text = "Total: " + str(value)
+## Best run score (metres). Shown top-right.
+func set_best(value: int) -> void:
+	_best_label.text = "Best: " + str(value) + " m"
+
+
+## Kept for compatibility; the HUD now shows Best instead of banked coins.
+func set_total_coins(_value: int) -> void:
+	pass
 
 
 ## Quick colour pop on the coin counter when a coin is grabbed.

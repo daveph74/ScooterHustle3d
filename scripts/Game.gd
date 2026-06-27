@@ -247,7 +247,7 @@ func _ready() -> void:
 
 	# Prepare the UI.
 	game_over.hide_screen()
-	hud.set_total_coins(GameData.total_coins)
+	hud.set_best(GameData.best_score)
 	hud.set_run_coins(0)
 	hud.set_score(0)
 
@@ -1420,6 +1420,11 @@ func _on_player_crashed() -> void:
 
 	# Bank the coins from this run into the player's permanent total (saves).
 	GameData.add_coins(run_coins)
+
+	# Record a new best score (persisted) and update the HUD badge.
+	if GameData.record_score(score):
+		GameData.save_game()
+		hud.set_best(GameData.best_score)
 
 	# Record run-based mission progress, then persist it once.
 	MissionManager.report("distance", int(distance))
