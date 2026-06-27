@@ -890,6 +890,14 @@ func _spawn_lane_closure() -> void:
 	# first); the dug-up road stretches behind it toward the horizon.
 	var wall_z := SPAWN_Z + CLOSURE_LENGTH
 
+	# Clear any traffic already sitting in the dug-up part of the closing lane
+	# (it's far ahead, so removal is unseen) - otherwise a vehicle drives over
+	# the dirt and through the barriers, which looks like a bug.
+	for v in traffic_container.get_children():
+		if v is TrafficVehicle and v.position.z <= wall_z + 8.0 \
+				and absf(v.get_meta("bx", 999.0) - lane_x) < 1.0:
+			v.queue_free()
+
 	# Torn-up "under construction" dirt road filling the closed lane behind the
 	# barrier (visual only; scrolls with the world via crossing_container).
 	var surf := MeshInstance3D.new()
@@ -924,12 +932,19 @@ func _spawn_lane_closure() -> void:
 		b.set_meta("by", 0.0)
 
 
-## Dirt/rubble surface for a closed (under-construction) lane. Built once.
+## Dirt/rubble surface for a closed (under-construction) lane. Built once. Uses a
+## tiled noise texture so it reads as real dug-up ground, not a flat slab.
 func _get_construction_material() -> StandardMaterial3D:
 	if _construction_material == null:
 		_construction_material = StandardMaterial3D.new()
-		_construction_material.albedo_color = Color(0.42, 0.32, 0.18)  # dirt brown
 		_construction_material.roughness = 1.0
+		if ResourceLoader.exists("res://effects/dirt.png"):
+			_construction_material.albedo_texture = load("res://effects/dirt.png")
+			# Tile the texture down the strip so it isn't stretched.
+			var reps: float = CLOSURE_LENGTH / (RoadManager.LANE_WIDTH * 0.92)
+			_construction_material.uv1_scale = Vector3(1.0, reps, 0.0)
+		else:
+			_construction_material.albedo_color = Color(0.42, 0.32, 0.18)  # fallback brown
 	return _construction_material
 
 
