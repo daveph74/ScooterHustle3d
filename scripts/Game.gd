@@ -453,7 +453,7 @@ func _make_road_segment() -> Node3D:
 	var clutter_keys := ["bench", "trash-bin", "flower-pot", "traffic-cone"]
 	for s in [-1.0, 1.0]:
 		if randi() % 3 == 0:   # ~33% chance each side
-			var key := clutter_keys[randi() % clutter_keys.size()]
+			var key: String = clutter_keys[randi() % clutter_keys.size()]
 			var prop := _prop_factory.make(key, segment)
 			prop.set_meta("side", s)
 			# Position along the tile (random z within the tile, on the sidewalk).
