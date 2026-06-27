@@ -39,11 +39,23 @@ func _ready() -> void:
 	add_child(shape)
 
 
+## Size the custom power-up models are fitted to.
+const MODEL_SIZE := 0.85
+
 ## Pick which power-up this is and build its icon. Call right after spawning.
+## Uses models/custom/<kind>.glb if it exists (magnet/shield/multiplier/speed),
+## otherwise falls back to the procedural coloured shape.
 func setup(new_kind: String) -> void:
 	kind = new_kind
-	var info: Dictionary = _KINDS.get(kind, _KINDS["magnet"])
-	_build_icon(info.color, info.shape)
+	var path := "res://models/custom/%s.glb" % kind
+	if ResourceLoader.exists(path):
+		var holder := ModelUtil.instance_fitted(
+			self, load(path), Vector3(MODEL_SIZE, MODEL_SIZE, MODEL_SIZE), "height", 0.0)
+		# ModelUtil grounds the model; lift it so it hovers at FLOAT_HEIGHT.
+		holder.position.y = FLOAT_HEIGHT - MODEL_SIZE * 0.5
+	else:
+		var info: Dictionary = _KINDS.get(kind, _KINDS["magnet"])
+		_build_icon(info.color, info.shape)
 
 
 func _build_icon(color: Color, shape_name: String) -> void:
