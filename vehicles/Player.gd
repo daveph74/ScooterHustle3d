@@ -92,9 +92,11 @@ func _ready() -> void:
 	# model_path falls back to the default scooter), auto-fitted to the player's
 	# size, then apply the equipped cosmetics (paint / helmet / wheels) - visual.
 	var model_path: String = SCOOTER_MODEL_PATH
+	var model_yaw: float = SCOOTER_YAW
 	if scooter and scooter.model_path != "":
 		model_path = scooter.model_path
-	var holder := ModelUtil.instance_fitted($Model, ModelUtil.hd_load(model_path), Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
+		model_yaw = scooter.model_yaw
+	var holder := ModelUtil.instance_fitted($Model, ModelUtil.hd_load(model_path), Vector3(0.9, 1.2, 1.9), "length", model_yaw)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Sit a rider on the bike, if the art exists yet.

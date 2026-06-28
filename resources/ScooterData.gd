@@ -18,6 +18,11 @@ class_name ScooterData
 ## scooter model.
 @export var model_path: String = ""
 
+## Yaw (degrees) to rotate this model so it faces down the road. Different
+## models come out of different tools facing different ways; tune in 90 steps
+## if a bike points the wrong way. 270 matches the default scooter.glb.
+@export var model_yaw: float = 270.0
+
 ## Speed multiplier. 1.0 = slow starter, higher = faster top speed.
 @export var speed: float = 1.0
 
