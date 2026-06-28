@@ -647,13 +647,13 @@ func _scroll_road(amount: float) -> void:
 #  CURVY WORLD (fake hills & bends)
 # ==========================================================================
 
-# Sideways displacement of the track at world position w (gentle, long bends).
+# Sideways displacement of the track at world position w (sweeping, sharper bends).
 func _path_x(w: float) -> float:
-	return (sin(w * 0.006) * 5.0 + sin(w * 0.015) * 2.0) * BEND_DIR
+	return (sin(w * 0.006) * 8.0 + sin(w * 0.015) * 3.5) * BEND_DIR
 
-# Vertical displacement of the track at world position w (small rolling hills).
+# Vertical displacement of the track at world position w (steeper rolling hills).
 func _path_y(w: float) -> float:
-	return (sin(w * 0.020) * 1.2 + cos(w * 0.045) * 0.5) * HILL_DIR
+	return (sin(w * 0.020) * 2.4 + cos(w * 0.045) * 1.0) * HILL_DIR
 
 ## How far to displace an object that is currently at local z (z < 0 = ahead).
 ## We subtract the value at the player so the offset is zero right at z = 0.
