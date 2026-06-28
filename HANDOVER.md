@@ -189,7 +189,11 @@ AudioManager (autoload) persists across scene changes -> music keeps playing.
 ### 6.1 Player (`vehicles/Player.gd`)
 - **Dynamic lanes** (no fixed lane count). `lane_positions: Array` holds the world X of each lane centre on the CURRENT road section; `Game` pushes it every frame via `player.set_lanes(...)` from `RoadManager.config_at(distance).positions` (see §6.12). `current_lane` is an INDEX into that array, starting at 1.
 - `_current_lane_x()` **clamps** `current_lane` to the array size, so when the road narrows and a lane vanishes, the player resolves to the nearest valid lane and the position lerp **slides them there smoothly — never an instant death.**
-- Smoothly lerps `position.x` to the target lane; `lane_change_speed = 7.0 * scooter.handling`.
+- Smoothly lerps `position.x` to the target lane. The bike's `handling` stat sets
+  both `lane_change_speed = LANE_SLIDE_PER * handling` (slide speed) and
+  `_lean_strength = LEAN_PER * handling` (how hard it leans), so a nimble bike
+  changes lanes faster and tips sharper. Tune `LANE_SLIDE_PER`/`LEAN_PER` in
+  `Player.gd`, or each bike's `handling` in `resources/*.tres`.
 - **Keyboard:** `Input.is_action_just_pressed("move_left"/"move_right")`.
 - **Touch:** `_unhandled_input` tracks a screen touch; a drag of > `SWIPE_MIN_PIXELS` (40px) triggers one lane change (one lane per swipe). Mouse→touch emulation is on in `project.godot`, so click-drag works on desktop.
 - Visual model: custom Meshy scooter (`models/custom/scooter.glb`) via `ModelUtil.instance_fitted`, oriented with `SCOOTER_YAW = 270.0`.
