@@ -93,6 +93,7 @@ const BEND_DIR := 1.0
 var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
 const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
+const SPEEDO_KMH_PER_UNIT := 2.6   # scroll-units/sec -> km/h shown on the gauge
 
 # All traffic shares ONE speed (as a fraction of the player's), so vehicles
 # keep their formation and never drift into an impossible 3-lane wall.
@@ -362,6 +363,9 @@ func _process(delta: float) -> void:
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
+	# Speedometer: scale the scroll speed (world units/sec) into a scooter-ish
+	# km/h reading for the gauge.
+	hud.set_speed(int(round(speed * SPEEDO_KMH_PER_UNIT)))
 	# Engine note revs up as we go faster.
 	AudioManager.update_engine((speed - base_speed) / (MAX_SPEED - base_speed + 0.001))
 	var speed_ratio: float = clampf((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)

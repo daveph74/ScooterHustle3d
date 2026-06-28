@@ -20,11 +20,16 @@ var _event_banner: Label
 var _pause_button: Button
 var _pause_overlay: Control
 var _debug_label: Label   # only used when Game.DEBUG_LANES is true
+var _speedo: Control      # custom-drawn arc speedometer (bottom-right)
+var _speed_label: Label   # the big km/h number inside the gauge
+var _speed_kmh := 0       # last value, drives the needle
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
 const SAFE_PAD := 18.0   # side inset from the screen edge (clears rounded corners)
 const SAFE_TOP := 30.0   # top inset (clears notches / status bar)
+const SPEEDO_MAX_KMH := 120.0   # full-scale of the dial (needle = kmh / this)
+const _SPEEDO_SIZE := Vector2(168.0, 100.0)
 
 
 func _ready() -> void:
@@ -112,8 +117,92 @@ func _ready() -> void:
 	_event_banner.modulate.a = 0.0
 	add_child(_event_banner)
 
+	_build_speedometer()
 	_build_pause_ui()
 	UiTheme.apply_buttons(self)
+
+
+# --- Speedometer -----------------------------------------------------------
+
+## A compact arc gauge in the bottom-right corner: a 180-degree dial with a
+## colour-coded fill (green -> red), tick marks, a needle, and a big km/h
+## number. Drawn by hand in _draw_speedo so it costs nothing but a few draw
+## calls, and only redraws when the speed value actually changes.
+func _build_speedometer() -> void:
+	var badge := _make_badge()
+	badge.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	badge.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	badge.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	badge.offset_right = -SAFE_PAD
+	badge.offset_bottom = -SAFE_PAD
+	add_child(badge)
+
+	_speedo = Control.new()
+	_speedo.custom_minimum_size = _SPEEDO_SIZE
+	_speedo.draw.connect(_draw_speedo)
+	badge.add_child(_speedo)
+
+	# Big km/h number, sitting in the lower-centre of the arc.
+	_speed_label = _make_label("0", HORIZONTAL_ALIGNMENT_CENTER)
+	_speed_label.add_theme_font_size_override("font_size", 34)
+	_speed_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_speed_label.offset_top = 40.0
+	_speed_label.offset_bottom = 78.0
+	_speedo.add_child(_speed_label)
+
+	# Small "km/h" unit under the number.
+	var unit := _make_label("km/h", HORIZONTAL_ALIGNMENT_CENTER)
+	unit.add_theme_font_size_override("font_size", 14)
+	unit.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+	unit.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	unit.offset_top = 78.0
+	unit.offset_bottom = 96.0
+	_speedo.add_child(unit)
+
+
+func _draw_speedo() -> void:
+	var center := Vector2(_SPEEDO_SIZE.x * 0.5, _SPEEDO_SIZE.y - 14.0)
+	var radius := 72.0
+	var t := clampf(float(_speed_kmh) / SPEEDO_MAX_KMH, 0.0, 1.0)
+
+	# Points along the top semicircle (PI on the left, 0 on the right).
+	var track := PackedVector2Array()
+	var fill := PackedVector2Array()
+	var steps := 32
+	for i in range(steps + 1):
+		var f := float(i) / float(steps)
+		var ang := PI - f * PI
+		var p := center + Vector2(cos(ang), -sin(ang)) * radius
+		track.append(p)
+		if f <= t:
+			fill.append(p)
+	# Unfilled track first (dim), then the coloured fill on top.
+	draw_polyline(track, Color(1, 1, 1, 0.18), 7.0, true)
+	if fill.size() >= 2:
+		draw_polyline(fill, _speed_color(t), 7.0, true)
+
+	# Tick marks every 20 km/h.
+	var ticks := int(SPEEDO_MAX_KMH / 20.0)
+	for j in range(ticks + 1):
+		var tf := float(j) / float(ticks)
+		var tang := PI - tf * PI
+		var tdir := Vector2(cos(tang), -sin(tang))
+		draw_line(center + tdir * (radius - 9.0), center + tdir * (radius - 2.0),
+			Color(1, 1, 1, 0.5), 2.0, true)
+
+	# Needle + hub.
+	var nang := PI - t * PI
+	var ndir := Vector2(cos(nang), -sin(nang))
+	draw_line(center, center + ndir * (radius - 6.0), Color(1.0, 0.95, 0.85), 3.0, true)
+	draw_circle(center, 6.0, Color(0.95, 0.95, 0.95))
+	draw_circle(center, 3.0, Color(0.2, 0.2, 0.22))
+
+
+## Green at low speed, through yellow, to red near the top of the dial.
+func _speed_color(t: float) -> Color:
+	if t < 0.5:
+		return Color(0.30, 0.90, 0.40).lerp(Color(1.0, 0.85, 0.20), t * 2.0)
+	return Color(1.0, 0.85, 0.20).lerp(Color(1.0, 0.30, 0.25), (t - 0.5) * 2.0)
 
 
 # --- Pause -----------------------------------------------------------------
@@ -243,6 +332,16 @@ func _make_badge() -> PanelContainer:
 
 func set_score(value: int) -> void:
 	_score_label.text = str(value) + " m"
+
+
+## Current speed in km/h. Updates the gauge number and redraws the needle
+## (only when the value actually changes, so it's cheap).
+func set_speed(kmh: int) -> void:
+	if kmh == _speed_kmh:
+		return
+	_speed_kmh = kmh
+	_speed_label.text = str(kmh)
+	_speedo.queue_redraw()
 
 
 func set_run_coins(value: int) -> void:
