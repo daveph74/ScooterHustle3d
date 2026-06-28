@@ -92,7 +92,16 @@ const BEND_DIR := 1.0
 # --- Speed & difficulty ---------------------------------------------------
 var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
-const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
+var max_speed := 42.0          # this run's top speed (set from the scooter)
+# Per-bike speed is set entirely by the scooter's "speed" stat (in its .tres):
+# it drives BOTH the starting speed and the top speed, so a faster bike really
+# does go faster - it doesn't just start quicker and converge on the same cap.
+#   start = SPEED_START_BASE + scooter.speed * SPEED_START_PER
+#   top   = SPEED_TOP_BASE   + scooter.speed * SPEED_TOP_PER
+const SPEED_START_BASE := 14.0
+const SPEED_START_PER := 4.0
+const SPEED_TOP_BASE := 30.0
+const SPEED_TOP_PER := 7.0
 const SPEEDO_KMH_PER_UNIT := 2.6   # scroll-units/sec -> km/h shown on the gauge
 var _hit_top_speed := false        # so the "TOP SPEED!" flash fires only once
 
@@ -235,10 +244,12 @@ func _ready() -> void:
 	sun.light_color = Color(1.0, 0.96, 0.86)
 	sun.light_energy = 1.4
 
-	# Faster scooters start the run faster.
+	# Each bike's "speed" stat sets both its starting speed and its top speed,
+	# so faster bikes genuinely go faster (and read higher on the speedometer).
 	var scooter := GameData.get_selected_scooter()
-	if scooter:
-		base_speed = 14.0 + scooter.speed * 4.0
+	var spd: float = scooter.speed if scooter else 1.0
+	base_speed = SPEED_START_BASE + spd * SPEED_START_PER
+	max_speed = maxf(base_speed + 4.0, SPEED_TOP_BASE + spd * SPEED_TOP_PER)
 	speed = base_speed
 
 	# Wire up the power-up manager now that base_speed is known.
@@ -294,13 +305,13 @@ func _process(delta: float) -> void:
 	elapsed += delta
 
 	# --- Gentle difficulty ramp (no sudden spikes) ------------------------
-	speed = minf(base_speed + elapsed * 0.35, MAX_SPEED)
+	speed = minf(base_speed + elapsed * 0.35, max_speed)
 	# The speed-boost power-up adds a small extra bump on top (capped modestly).
 	speed += powerups.speed_bonus()
 	traffic_interval = maxf(0.85, 1.6 - elapsed * 0.012)
 
 	# Celebrate the first time the difficulty ramp reaches the speed cap.
-	if not _hit_top_speed and base_speed + elapsed * 0.35 >= MAX_SPEED:
+	if not _hit_top_speed and base_speed + elapsed * 0.35 >= max_speed:
 		_hit_top_speed = true
 		hud.flash_top_speed()
 
@@ -373,8 +384,8 @@ func _process(delta: float) -> void:
 	# km/h reading for the gauge.
 	hud.set_speed(int(round(speed * SPEEDO_KMH_PER_UNIT)))
 	# Engine note revs up as we go faster.
-	AudioManager.update_engine((speed - base_speed) / (MAX_SPEED - base_speed + 0.001))
-	var speed_ratio: float = clampf((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
+	AudioManager.update_engine((speed - base_speed) / (max_speed - base_speed + 0.001))
+	var speed_ratio: float = clampf((speed - base_speed) / (max_speed - base_speed + 0.001), 0.0, 1.0)
 	player.set_speed_ratio(speed_ratio)
 	_speed_lines.set_speed_ratio(speed_ratio)
 	_update_camera(delta)
@@ -1290,7 +1301,7 @@ func _update_camera(delta: float) -> void:
 
 	# Widen the field of view as we speed up = sense of speed (range chosen for
 	# the window's aspect in _ready).
-	var speed_ratio: float = clamp((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
+	var speed_ratio: float = clamp((speed - base_speed) / (max_speed - base_speed + 0.001), 0.0, 1.0)
 	camera.fov = lerp(_fov_lo, _fov_hi, speed_ratio)
 
 

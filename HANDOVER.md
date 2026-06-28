@@ -218,7 +218,11 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 "NEAR MISS!" flash, and the near_miss SFX.
 
 ### 6.5 Difficulty ramp (`Game._process`)
-- `speed = min(base_speed + elapsed*0.35, MAX_SPEED=42)`, where `base_speed = 14 + scooter.speed*4`.
+- `speed = min(base_speed + elapsed*0.35, max_speed)`. Each bike's `speed` stat
+  (in its `.tres`) sets BOTH ends: `base_speed = 14 + scooter.speed*4` (start) and
+  `max_speed = max(base+4, 30 + scooter.speed*7)` (top), so faster bikes really do
+  go faster instead of all converging on one cap. Tune the `SPEED_*` consts in
+  `Game.gd`, or just edit each bike's `speed` in `resources/*.tres`.
 - `traffic_interval = max(0.85, 1.6 - elapsed*0.012)` (rows get closer).
 - Two-lane blocks unlock at `elapsed > 20s` (50% chance per row).
 - No sudden spikes — everything ramps with `elapsed`.
@@ -371,7 +375,7 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 | Lane spacing | `RoadManager.LANE_WIDTH` (single source of truth — Player reads lanes from it) |
 | When lanes change (2/3/4) | `RoadManager` `ALL_3_UNTIL` / `ALLOW_4_AFTER` / `SECTION_MIN/MAX` / `_pick_next_count` |
 | Transition (narrow/widen) length | `RoadManager.TRANSITION_LEN` |
-| Speed / difficulty | `base_speed` formula, `MAX_SPEED`, the `elapsed*` ramp coefficients |
+| Speed / difficulty | `SPEED_*` consts (per-bike start/top speed) + each bike's `speed` in `resources/*.tres`, the `elapsed*` ramp coefficients |
 | How aggressive traffic is | `traffic_interval` floor, the `elapsed > 20` / `randf() < 0.5` block-all gate |
 | Traffic relative speed | `TRAFFIC_SPEED_FRACTION` |
 | Pedestrian crossings | `CROSSING_FIRST_AT` / `CROSSING_MIN/MAX_GAP` / `CROSSING_WALK_SPEED` (Game.gd) |
