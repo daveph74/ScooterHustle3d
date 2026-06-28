@@ -40,15 +40,20 @@ const TREE_MODELS := [
 # Recognisable landmarks (custom Meshy models). Unlike generic buildings these
 # are oriented to FACE THE ROAD so you always see the storefront.
 const LANDMARK_MODELS := [
-	"res://models/custom/jollibee.glb",
-	"res://models/custom/church.glb",
-	"res://models/custom/insal.glb",
-	"res://models/custom/petron.glb",
-	"res://models/custom/sari-sari.glb",
-	"res://models/custom/711.glb",
-	"res://models/custom/chowking.glb",
-	"res://models/custom/lto.glb",
-	"res://models/custom/pharmacy.glb",
+	"res://models/custom/jollibee.glb",     # 0
+	"res://models/custom/church.glb",       # 1
+	"res://models/custom/insal.glb",        # 2
+	"res://models/custom/petron.glb",       # 3
+	"res://models/custom/sari-sari.glb",    # 4
+	"res://models/custom/711.glb",          # 5
+	"res://models/custom/chowking.glb",     # 6
+	"res://models/custom/lto.glb",          # 7
+	"res://models/custom/pharmacy.glb",     # 8
+	# PC-only HD landmarks (live in models/pc/; resolved by ModelUtil.hd_path).
+	"res://models/custom/barangay_hall.glb", # 9
+	"res://models/custom/bpo.glb",           # 10
+	"res://models/custom/pawnshop.glb",      # 11
+	"res://models/custom/school.glb",        # 12
 ]
 # Existing models repurposed as decorative ambient life on the sidewalk.
 const PARKED_SCOOTER_MODEL := "res://models/custom/scooter.glb"

@@ -20,8 +20,13 @@
 #
 # Tuning knobs (env vars):
 #   TEX=1024        max texture dimension (set 2048 for max fidelity, more VRAM)
-#   SIMPLIFY_MB=4   only simplify files larger than this many MB after resize
-#   RATIO=0.18      vertices to keep when a file IS simplified
+#   SIMPLIFY_MB=8   only simplify files larger than this many MB after resize
+#   RATIO=0.5       vertices to keep when a file IS simplified
+#   ERROR=0.003     max simplify error (raise to decimate harder, risk damage)
+#
+# NOTE: simplify can collapse THIN structures (petrol-station canopies, signs,
+# railings). The defaults are deliberately gentle. For a hero asset that still
+# looks wrong after this, run with RATIO=1 (skip simplify, texture resize only).
 set -euo pipefail
 
 IN="${1:?usage: optimize_glb_pc.sh input.glb [output.glb] [keep_ratio]}"
@@ -32,8 +37,9 @@ PC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/models/pc"
 OUT="${2:-$PC_DIR/$(basename "$IN")}"
 
 TEX="${TEX:-1024}"
-SIMPLIFY_MB="${SIMPLIFY_MB:-4}"
-RATIO="${3:-${RATIO:-0.18}}"
+SIMPLIFY_MB="${SIMPLIFY_MB:-8}"
+RATIO="${3:-${RATIO:-0.5}}"
+ERROR="${ERROR:-0.003}"
 
 GT="npx --yes @gltf-transform/cli@4"
 TMP="$(mktemp -d)"
@@ -48,9 +54,9 @@ $GT weld   "$TMP/a.glb" "$TMP/b.glb"
 # 2) Only decimate geometry when the model is still heavy after resizing, so
 #    light HD models keep full detail.
 SIZE_MB=$(du -m "$TMP/b.glb" | cut -f1)
-if [ "$SIZE_MB" -gt "$SIMPLIFY_MB" ]; then
-	echo "  ${SIZE_MB}MB > ${SIMPLIFY_MB}MB -> simplify --ratio $RATIO"
-	$GT simplify "$TMP/b.glb" "$OUT" --ratio "$RATIO" --error 0.01
+if [ "$SIZE_MB" -gt "$SIMPLIFY_MB" ] && [ "$RATIO" != "1" ]; then
+	echo "  ${SIZE_MB}MB > ${SIMPLIFY_MB}MB -> simplify --ratio $RATIO --error $ERROR"
+	$GT simplify "$TMP/b.glb" "$OUT" --ratio "$RATIO" --error "$ERROR"
 else
 	echo "  ${SIZE_MB}MB <= ${SIMPLIFY_MB}MB -> keep full poly"
 	cp "$TMP/b.glb" "$OUT"
