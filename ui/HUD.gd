@@ -23,12 +23,14 @@ var _debug_label: Label   # only used when Game.DEBUG_LANES is true
 var _speedo: Control      # custom-drawn arc speedometer (bottom-right)
 var _speed_label: Label   # the big km/h number inside the gauge
 var _speed_kmh := 0       # last value, drives the needle
+var _top_speed_label: Label   # brief "TOP SPEED!" flash when the cap is hit
 const _POWERUP_LABELS := {
 	"magnet": "Magnet", "shield": "Shield", "multiplier": "x2 Coins", "speed": "Boost",
 }
 const SAFE_PAD := 18.0   # side inset from the screen edge (clears rounded corners)
 const SAFE_TOP := 30.0   # top inset (clears notches / status bar)
 const SPEEDO_MAX_KMH := 120.0   # full-scale of the dial (needle = kmh / this)
+const SPEEDO_REDLINE_T := 0.84  # fraction of the dial that is the red zone
 const _SPEEDO_SIZE := Vector2(168.0, 100.0)
 
 
@@ -159,6 +161,15 @@ func _build_speedometer() -> void:
 	unit.offset_bottom = 96.0
 	_speedo.add_child(unit)
 
+	# "TOP SPEED!" flash, centred a touch below the combo line, hidden to start.
+	_top_speed_label = _make_label("TOP SPEED!", HORIZONTAL_ALIGNMENT_CENTER)
+	_top_speed_label.add_theme_font_size_override("font_size", 46)
+	_top_speed_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.25))
+	_top_speed_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_top_speed_label.offset_top = 380.0
+	_top_speed_label.modulate.a = 0.0
+	add_child(_top_speed_label)
+
 
 func _draw_speedo() -> void:
 	var center := Vector2(_SPEEDO_SIZE.x * 0.5, _SPEEDO_SIZE.y - 14.0)
@@ -176,8 +187,17 @@ func _draw_speedo() -> void:
 		track.append(p)
 		if f <= t:
 			fill.append(p)
-	# Unfilled track first (dim), then the coloured fill on top.
+	# Unfilled track first (dim), then a dim-red "redline" zone over the top of
+	# the dial, then the coloured speed fill on top of both.
 	draw_polyline(track, Color(1, 1, 1, 0.18), 7.0, true)
+	var redline := PackedVector2Array()
+	for i in range(steps + 1):
+		var rf := float(i) / float(steps)
+		if rf >= SPEEDO_REDLINE_T:
+			var rang := PI - rf * PI
+			redline.append(center + Vector2(cos(rang), -sin(rang)) * radius)
+	if redline.size() >= 2:
+		draw_polyline(redline, Color(1.0, 0.25, 0.2, 0.5), 7.0, true)
 	if fill.size() >= 2:
 		draw_polyline(fill, _speed_color(t), 7.0, true)
 
@@ -196,6 +216,18 @@ func _draw_speedo() -> void:
 	draw_line(center, center + ndir * (radius - 6.0), Color(1.0, 0.95, 0.85), 3.0, true)
 	draw_circle(center, 6.0, Color(0.95, 0.95, 0.95))
 	draw_circle(center, 3.0, Color(0.2, 0.2, 0.22))
+
+
+## Flash "TOP SPEED!" with a quick scale pop, then fade out. Game calls this
+## once, the first time the difficulty ramp reaches the speed cap.
+func flash_top_speed() -> void:
+	_top_speed_label.modulate = Color(1.0, 0.35, 0.25, 1.0)
+	_top_speed_label.pivot_offset = _top_speed_label.size * 0.5
+	_top_speed_label.scale = Vector2(1.5, 1.5)
+	var tween := create_tween()
+	tween.tween_property(_top_speed_label, "scale", Vector2.ONE, 0.25)
+	tween.tween_interval(1.2)
+	tween.tween_property(_top_speed_label, "modulate:a", 0.0, 0.6)
 
 
 ## Green at low speed, through yellow, to red near the top of the dial.

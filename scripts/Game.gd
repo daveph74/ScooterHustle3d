@@ -94,6 +94,7 @@ var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
 const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
 const SPEEDO_KMH_PER_UNIT := 2.6   # scroll-units/sec -> km/h shown on the gauge
+var _hit_top_speed := false        # so the "TOP SPEED!" flash fires only once
 
 # All traffic shares ONE speed (as a fraction of the player's), so vehicles
 # keep their formation and never drift into an impossible 3-lane wall.
@@ -297,6 +298,11 @@ func _process(delta: float) -> void:
 	# The speed-boost power-up adds a small extra bump on top (capped modestly).
 	speed += powerups.speed_bonus()
 	traffic_interval = maxf(0.85, 1.6 - elapsed * 0.012)
+
+	# Celebrate the first time the difficulty ramp reaches the speed cap.
+	if not _hit_top_speed and base_speed + elapsed * 0.35 >= MAX_SPEED:
+		_hit_top_speed = true
+		hud.flash_top_speed()
 
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
