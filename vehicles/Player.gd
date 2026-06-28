@@ -86,9 +86,15 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 
 
 func _ready() -> void:
-	# Drop in the scooter model, auto-fitted to the player's size, then apply the
-	# equipped cosmetics (paint / helmet / wheels) - purely visual.
-	var holder := ModelUtil.instance_fitted($Model, ModelUtil.hd_load(SCOOTER_MODEL_PATH), Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
+	var scooter := GameData.get_selected_scooter()
+
+	# Drop in the selected bike's model (each bike can name its own .glb; an empty
+	# model_path falls back to the default scooter), auto-fitted to the player's
+	# size, then apply the equipped cosmetics (paint / helmet / wheels) - visual.
+	var model_path: String = SCOOTER_MODEL_PATH
+	if scooter and scooter.model_path != "":
+		model_path = scooter.model_path
+	var holder := ModelUtil.instance_fitted($Model, ModelUtil.hd_load(model_path), Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Sit a rider on the bike, if the art exists yet.
@@ -96,7 +102,6 @@ func _ready() -> void:
 
 	# Read the selected scooter's handling so better bikes feel snappier: a
 	# higher handling slides between lanes faster and leans harder.
-	var scooter := GameData.get_selected_scooter()
 	var handling: float = scooter.handling if scooter else 1.0
 	lane_change_speed = LANE_SLIDE_PER * handling
 	_lean_strength = LEAN_PER * handling
