@@ -189,7 +189,9 @@ func _draw_speedo() -> void:
 			fill.append(p)
 	# Unfilled track first (dim), then a dim-red "redline" zone over the top of
 	# the dial, then the coloured speed fill on top of both.
-	draw_polyline(track, Color(1, 1, 1, 0.18), 7.0, true)
+	# NOTE: the drawing calls must target _speedo (the CanvasItem being drawn),
+	# not self (the HUD is a CanvasLayer and has no draw_* methods).
+	_speedo.draw_polyline(track, Color(1, 1, 1, 0.18), 7.0, true)
 	var redline := PackedVector2Array()
 	for i in range(steps + 1):
 		var rf := float(i) / float(steps)
@@ -197,9 +199,9 @@ func _draw_speedo() -> void:
 			var rang := PI - rf * PI
 			redline.append(center + Vector2(cos(rang), -sin(rang)) * radius)
 	if redline.size() >= 2:
-		draw_polyline(redline, Color(1.0, 0.25, 0.2, 0.5), 7.0, true)
+		_speedo.draw_polyline(redline, Color(1.0, 0.25, 0.2, 0.5), 7.0, true)
 	if fill.size() >= 2:
-		draw_polyline(fill, _speed_color(t), 7.0, true)
+		_speedo.draw_polyline(fill, _speed_color(t), 7.0, true)
 
 	# Tick marks every 20 km/h.
 	var ticks := int(SPEEDO_MAX_KMH / 20.0)
@@ -207,15 +209,15 @@ func _draw_speedo() -> void:
 		var tf := float(j) / float(ticks)
 		var tang := PI - tf * PI
 		var tdir := Vector2(cos(tang), -sin(tang))
-		draw_line(center + tdir * (radius - 9.0), center + tdir * (radius - 2.0),
+		_speedo.draw_line(center + tdir * (radius - 9.0), center + tdir * (radius - 2.0),
 			Color(1, 1, 1, 0.5), 2.0, true)
 
 	# Needle + hub.
 	var nang := PI - t * PI
 	var ndir := Vector2(cos(nang), -sin(nang))
-	draw_line(center, center + ndir * (radius - 6.0), Color(1.0, 0.95, 0.85), 3.0, true)
-	draw_circle(center, 6.0, Color(0.95, 0.95, 0.95))
-	draw_circle(center, 3.0, Color(0.2, 0.2, 0.22))
+	_speedo.draw_line(center, center + ndir * (radius - 6.0), Color(1.0, 0.95, 0.85), 3.0, true)
+	_speedo.draw_circle(center, 6.0, Color(0.95, 0.95, 0.95))
+	_speedo.draw_circle(center, 3.0, Color(0.2, 0.2, 0.22))
 
 
 ## Flash "TOP SPEED!" with a quick scale pop, then fade out. Game calls this
