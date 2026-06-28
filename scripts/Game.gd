@@ -219,6 +219,7 @@ var _clouds: Array = []
 func _ready() -> void:
 	_make_road_materials()
 	_build_road()
+	_prewarm_models()
 	_prewarm_scenery()
 	_prewarm_traffic()
 
@@ -1086,6 +1087,30 @@ func _scroll_clouds(amount: float, delta: float) -> void:
 ## Fill both road sides with a continuous wall of scenery at startup.
 func _prewarm_scenery() -> void:
 	_fill_scenery()
+
+
+## Warm the model-load cache at startup so first-spawn load() calls don't stall
+## a frame mid-run. Traffic and scenery models are already loaded by being
+## instanced in their prewarm passes; this covers the rest (coins, power-ups,
+## ambient props) that only spawn later. load() caches the PackedScene, so the
+## first real spawn then comes straight from cache - no hitch. Cheap: a few GLB
+## loads, no instancing.
+func _prewarm_models() -> void:
+	var paths := PackedStringArray([
+		"res://models/custom/coin.glb",
+		"res://models/custom/magnet.glb",
+		"res://models/custom/shield.glb",
+		"res://models/custom/multiplier.glb",
+		"res://models/custom/speed.glb",
+		PARKED_SCOOTER_MODEL,
+		PARKED_JEEPNEY_MODEL,
+		AMBIENT_PERSON_MODEL,
+	])
+	for path in paths:
+		# hd_path resolves the models/pc/ HD override on the PC build.
+		var resolved := ModelUtil.hd_path(path)
+		if ResourceLoader.exists(resolved):
+			load(resolved)
 
 
 ## Recursively apply the wind ShaderMaterial to every MeshInstance3D under root.
