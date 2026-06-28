@@ -13,6 +13,11 @@ class_name ScooterData
 ## The name shown to the player in menus.
 @export var display_name: String = "Scooter"
 
+## The .glb model for this bike (resolved via ModelUtil.hd_load, so the PC
+## build can use a models/pc/ HD version). Leave empty to use the default
+## scooter model.
+@export var model_path: String = ""
+
 ## Speed multiplier. 1.0 = slow starter, higher = faster top speed.
 @export var speed: float = 1.0
 
