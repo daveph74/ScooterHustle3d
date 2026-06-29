@@ -1,0 +1,59 @@
+name: Deploy Web build to GitHub Pages
+
+# Builds the HTML5/WebAssembly version in the cloud and publishes it to a
+# public GitHub Pages URL, so the game can be played from a phone browser with
+# no local Godot install. Runs on every push to the mobile dev branch, and can
+# be triggered by hand from the Actions tab.
+on:
+  push:
+    branches: [claude/elegant-lamport-nv40yn]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let only one Pages deploy run at a time.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot (with export templates)
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.0
+          include-templates: true
+
+      # Import once so every .glb / resource is converted before exporting.
+      - name: Import project
+        run: godot --headless --import --path . --quit || true
+
+      - name: Build Web export
+        run: |
+          mkdir -p build
+          godot --headless --export-release "Web" ./build/index.html
+          # GitHub Pages runs Jekyll by default, which strips files Godot needs;
+          # .nojekyll disables that. Also make the entry page index.html (it is).
+          touch build/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
