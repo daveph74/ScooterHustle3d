@@ -34,8 +34,13 @@ var lane_positions: Array = [-2.5, 0.0, 2.5]
 
 # Which lane we are aiming for, as an INDEX into lane_positions (0 = leftmost).
 var current_lane := 1
-# How quickly we slide between lanes. Set from the scooter's handling stat.
+# Lane-change feel, both set from the scooter's handling stat in _ready:
+# how fast we slide between lanes, and how hard we lean into the turn. A nimble
+# bike changes lanes faster AND leans sharper.
 var lane_change_speed := 9.0
+var _lean_strength := 0.25
+const LANE_SLIDE_PER := 8.0   # lane-slide speed = this * handling
+const LEAN_PER := 0.25        # lean amount    = this * handling
 # Once we crash we stop responding to input.
 var alive := true
 # Seconds since the last actual lane change (used to detect a genuine "dodge"
@@ -80,18 +85,27 @@ const SWIPE_MIN_PIXELS := 40.0   # how far a finger must move to count as a swip
 
 
 func _ready() -> void:
-	# Drop in the scooter model, auto-fitted to the player's size, then apply the
-	# equipped cosmetics (paint / helmet / wheels) - purely visual.
-	var holder := ModelUtil.instance_fitted($Model, SCOOTER_MODEL, Vector3(0.9, 1.2, 1.9), "length", SCOOTER_YAW)
+	var scooter := GameData.get_selected_scooter()
+
+	# Drop in the selected bike's model (each bike can name its own .glb; an empty
+	# model_path falls back to the default scooter), auto-fitted to the player's
+	# size, then apply the equipped cosmetics (paint / helmet / wheels) - visual.
+	var packed: PackedScene = SCOOTER_MODEL
+	var model_yaw: float = SCOOTER_YAW
+	if scooter and scooter.model_path != "" and ResourceLoader.exists(scooter.model_path):
+		packed = load(scooter.model_path)
+		model_yaw = scooter.model_yaw
+	var holder := ModelUtil.instance_fitted($Model, packed, Vector3(0.9, 1.2, 1.9), "length", model_yaw)
 	Cosmetics.new().apply(holder, GameData.equipped_cosmetics)
 
 	# Sit a rider on the bike, if the art exists yet.
 	_mount_rider()
 
-	# Read the selected scooter's handling so better bikes feel snappier.
-	var scooter := GameData.get_selected_scooter()
-	if scooter:
-		lane_change_speed = 7.0 * scooter.handling
+	# Read the selected scooter's handling so better bikes feel snappier: a
+	# higher handling slides between lanes faster and leans harder.
+	var handling: float = scooter.handling if scooter else 1.0
+	lane_change_speed = LANE_SLIDE_PER * handling
+	_lean_strength = LEAN_PER * handling
 
 	_build_dust()
 	_build_shield_bubble()
@@ -238,8 +252,8 @@ func _process(delta: float) -> void:
 	var t: float = clamp(lane_change_speed * delta, 0.0, 1.0)
 	position.x = lerp(position.x, target_x, t)
 
-	# Lean the scooter into the turn for a bit of flavour.
-	var lean := (target_x - position.x) * 0.25
+	# Lean the scooter into the turn for a bit of flavour (sharper on nimble bikes).
+	var lean := (target_x - position.x) * _lean_strength
 	rotation.z = lerp(rotation.z, lean, clamp(10.0 * delta, 0.0, 1.0))
 
 	# Show the shield dome while a shield is active, with a gentle spin + pulse.

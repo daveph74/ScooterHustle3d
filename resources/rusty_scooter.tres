@@ -6,6 +6,8 @@
 script = ExtResource("1")
 id = "rusty"
 display_name = "Rusty Scooter"
+model_path = "res://models/custom/scooter-rusty.glb"
+model_yaw = 225.0
 speed = 1.0
 handling = 1.0
 price = 0

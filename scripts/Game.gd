@@ -86,7 +86,18 @@ const BEND_DIR := 1.0
 # --- Speed & difficulty ---------------------------------------------------
 var base_speed := 16.0         # starting scroll speed (set from the scooter)
 var speed := 16.0              # current scroll speed
-const MAX_SPEED := 42.0        # difficulty cap so it never gets unfair
+var max_speed := 42.0          # this run's top speed (set from the scooter)
+# Per-bike speed is set entirely by the scooter's "speed" stat (in its .tres):
+# it drives BOTH the starting speed and the top speed, so a faster bike really
+# does go faster - it doesn't just start quicker and converge on the same cap.
+#   start = SPEED_START_BASE + scooter.speed * SPEED_START_PER
+#   top   = SPEED_TOP_BASE   + scooter.speed * SPEED_TOP_PER
+const SPEED_START_BASE := 14.0
+const SPEED_START_PER := 4.0
+const SPEED_TOP_BASE := 30.0
+const SPEED_TOP_PER := 7.0
+const SPEEDO_KMH_PER_UNIT := 2.6   # scroll-units/sec -> km/h shown on the gauge
+var _hit_top_speed := false        # so the "TOP SPEED!" flash fires only once
 
 # All traffic shares ONE speed (as a fraction of the player's), so vehicles
 # keep their formation and never drift into an impossible 3-lane wall.
@@ -144,13 +155,22 @@ const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small =
 # lane; the player must merge inward. The centre lane is forced open for the
 # duration so the road is always passable.
 var closure_timer := 0.0
-var _closed_lane := -1             # outer lane currently closed (-1 = none)
+var _closed_lane := -1             # lane physically blocked: outer (closure) or centre (split); -1 = none
 var _closure_until := 0.0          # distance at which the closure has fully passed
 const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
 const CLOSURE_MIN_GAP := 11.0      # seconds between closures
 const CLOSURE_MAX_GAP := 20.0
 const CLOSURE_LENGTH := 20.0       # how long the dug-up stretch is (metres)
 var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
+
+# Road splits: a central median island forces a left/right choice. Both sides
+# are drivable; one side (random) is lined with a coin reward + a power-up,
+# the other gets the traffic. Reuses the closure state (_closed_lane = centre
+# lane, _safe_lane = the reward side, _closure_until = when the centre reopens).
+const SPLIT_FIRST_AT := 550.0      # splits start later than closures
+const SPLIT_CHANCE := 0.45         # of each construction event, chance it's a split
+const SPLIT_LENGTH := 30.0         # length of the median island (metres)
+var _median_material: StandardMaterial3D   # concrete median surface (lazy)
 
 # --- Camera & shake tuning -----------------------------------------------
 # Camera base transform (y=2.6, z=5.8) is set in scenes/Game.tscn on Camera3D.
@@ -220,10 +240,12 @@ func _ready() -> void:
 	sun.light_color = Color(1.0, 0.96, 0.86)
 	sun.light_energy = 1.4
 
-	# Faster scooters start the run faster.
+	# Each bike's "speed" stat sets both its starting speed and its top speed,
+	# so faster bikes genuinely go faster (and read higher on the speedometer).
 	var scooter := GameData.get_selected_scooter()
-	if scooter:
-		base_speed = 14.0 + scooter.speed * 4.0
+	var spd: float = scooter.speed if scooter else 1.0
+	base_speed = SPEED_START_BASE + spd * SPEED_START_PER
+	max_speed = maxf(base_speed + 4.0, SPEED_TOP_BASE + spd * SPEED_TOP_PER)
 	speed = base_speed
 
 	# Wire up the power-up manager now that base_speed is known.
@@ -268,10 +290,15 @@ func _process(delta: float) -> void:
 	elapsed += delta
 
 	# --- Gentle difficulty ramp (no sudden spikes) ------------------------
-	speed = minf(base_speed + elapsed * 0.35, MAX_SPEED)
+	speed = minf(base_speed + elapsed * 0.35, max_speed)
 	# The speed-boost power-up adds a small extra bump on top (capped modestly).
 	speed += powerups.speed_bonus()
 	traffic_interval = maxf(0.85, 1.6 - elapsed * 0.012)
+
+	# Celebrate the first time the difficulty ramp reaches the speed cap.
+	if not _hit_top_speed and base_speed + elapsed * 0.35 >= max_speed:
+		_hit_top_speed = true
+		hud.flash_top_speed()
 
 	# --- Advance the world ------------------------------------------------
 	var move := speed * delta
@@ -334,13 +361,21 @@ func _process(delta: float) -> void:
 		closure_timer -= delta
 		if closure_timer <= 0.0:
 			closure_timer = randf_range(CLOSURE_MIN_GAP, CLOSURE_MAX_GAP)
-			_spawn_lane_closure()
+			# Later in the run a construction event is sometimes a road split
+			# (median forces a left/right choice) instead of a lane closure.
+			if distance >= SPLIT_FIRST_AT and randf() < SPLIT_CHANCE:
+				_spawn_road_split()
+			else:
+				_spawn_lane_closure()
 
 	# --- HUD + camera + shake --------------------------------------------
 	hud.set_score(score)
+	# Speedometer: scale the scroll speed (world units/sec) into a scooter-ish
+	# km/h reading for the gauge.
+	hud.set_speed(int(round(speed * SPEEDO_KMH_PER_UNIT)))
 	# Engine note revs up as we go faster.
-	AudioManager.update_engine((speed - base_speed) / (MAX_SPEED - base_speed + 0.001))
-	var speed_ratio: float = clampf((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
+	AudioManager.update_engine((speed - base_speed) / (max_speed - base_speed + 0.001))
+	var speed_ratio: float = clampf((speed - base_speed) / (max_speed - base_speed + 0.001), 0.0, 1.0)
 	player.set_speed_ratio(speed_ratio)
 	_speed_lines.set_speed_ratio(speed_ratio)
 	_update_camera(delta)
@@ -670,13 +705,11 @@ func _spawn_traffic_at(z: float) -> void:
 	var positions: Array = cfg.positions
 	var types := ["jeepney", "tricycle", "bus", "car"]
 
-	# During a lane closure the centre lane is the guaranteed-open path, and we
-	# never spawn traffic in the closed (barriered) lane.
+	# During a closure/split one lane is physically blocked (_closed_lane) and a
+	# guaranteed-open path is pinned by the spawner (_safe_lane: centre for a
+	# closure, the reward side for a split). We never spawn traffic in either.
 	var closure_active := _closed_lane >= 0 and _closed_lane < count
-	if closure_active:
-		_safe_lane = 1
-	else:
-		_safe_lane = clampi(_safe_lane, 0, count - 1)
+	_safe_lane = clampi(_safe_lane, 0, count - 1)
 
 	# Lanes that are neither the guaranteed-open one nor the closed lane.
 	var other_lanes: Array = []
@@ -784,6 +817,8 @@ func _handle_lane_merge(vehicle: TrafficVehicle, delta: float) -> void:
 ## A "near miss" is when traffic passes the player in an ADJACENT lane without
 ## hitting them. We give a tiny score bonus and a little juice for the thrill.
 func _check_near_miss(vehicle: Node3D) -> void:
+	if vehicle.has_meta("no_near_miss"):
+		return   # e.g. the median island - riding beside it isn't a "dodge"
 	if vehicle.has_meta("passed"):
 		return
 	if vehicle.position.z >= player.position.z:
@@ -966,6 +1001,128 @@ func _get_construction_material() -> StandardMaterial3D:
 		else:
 			_construction_material.albedo_color = Color(0.42, 0.32, 0.18)  # fallback brown
 	return _construction_material
+
+
+# ==========================================================================
+#  ROAD SPLIT  ("the road forks - pick a side")
+# ==========================================================================
+
+## Drop a central median island that splits the road in two. The centre lane is
+## blocked (driving into the median crashes you), so the player MUST commit to
+## the left or right path. Both sides are drivable; one side (random) is lined
+## with a coin reward + a power-up, and traffic is steered to the other side.
+## Built like a lane closure: a visual strip in crossing_container (scrolls and
+## tilts to the slope) plus a row of invisible colliders in traffic_container.
+func _spawn_road_split() -> void:
+	var cfg := road.config_at(distance - SPAWN_Z)
+	if cfg.is_transition:
+		return
+	var count: int = cfg.count
+	if count != 3:
+		return   # the median split is designed for the standard 3-lane road
+	var positions: Array = cfg.positions
+	var center_x: float = positions[1]
+	var lane_w: float = RoadManager.LANE_WIDTH
+
+	# Reward side = a random outer lane; the centre lane is the blocked median.
+	var reward_side: int = 0 if randf() < 0.5 else count - 1
+	_closed_lane = 1               # centre lane is blocked (no traffic spawns here)
+	_safe_lane = reward_side       # reward side is the guaranteed-open path
+	_closure_until = distance + 200.0
+
+	var nose_z := SPAWN_Z + SPLIT_LENGTH   # near end (reached first)
+
+	# Clear anything already sitting in the centre lane span so nothing floats on
+	# or punches through the median (it's far ahead, so removal is unseen).
+	for v in traffic_container.get_children():
+		if v.position.z <= nose_z + 8.0 and absf(v.get_meta("bx", 999.0) - center_x) < 1.0:
+			v.queue_free()
+	for c in coin_container.get_children():
+		if c.position.z <= nose_z + 8.0 and absf(c.get_meta("bx", 999.0) - center_x) < 1.0:
+			c.queue_free()
+
+	# Visual median island: a raised concrete strip down the centre lane.
+	var island := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(lane_w * 0.78, 0.30, SPLIT_LENGTH)
+	island.mesh = bm
+	island.material_override = _get_median_material()
+	crossing_container.add_child(island)
+	island.position = Vector3(center_x, 0.15, SPAWN_Z + SPLIT_LENGTH * 0.5)
+	island.set_meta("bx", center_x)
+	island.set_meta("by", 0.15)
+	island.set_meta("despawn_z", DESPAWN_Z + SPLIT_LENGTH * 0.5 + 4.0)
+	island.set_meta("tilt_len", SPLIT_LENGTH)
+
+	# A bright warning nose at the near end so the fork is well telegraphed.
+	var nose := MeshInstance3D.new()
+	var nbm := BoxMesh.new()
+	nbm.size = Vector3(lane_w * 0.82, 0.9, 1.2)
+	nose.mesh = nbm
+	var nmat := StandardMaterial3D.new()
+	nmat.albedo_color = Color(0.95, 0.78, 0.05)   # warning yellow
+	nose.material_override = nmat
+	crossing_container.add_child(nose)
+	nose.position = Vector3(center_x, 0.45, nose_z)
+	nose.set_meta("bx", center_x)
+	nose.set_meta("by", 0.45)
+	nose.set_meta("despawn_z", DESPAWN_Z + 4.0)
+
+	# Invisible colliders down the centre lane (a short fence of boxes, so each
+	# follows the hills/bends and despawns cleanly) - touching one crashes you.
+	var seg := 4.0
+	var z := SPAWN_Z + seg * 0.5
+	while z <= nose_z:
+		_add_median_collider(center_x, z, Vector3(lane_w * 0.72, 0.6, seg))
+		z += seg
+
+	# Reward bundle on the chosen side: a coin arc plus a power-up mid-island.
+	var reward_x: float = positions[reward_side]
+	for i in range(8):
+		var coin := COIN_SCENE.instantiate()
+		coin_container.add_child(coin)
+		coin.position = Vector3(reward_x, 0.7, nose_z - i * 3.0)
+		coin.set_meta("bx", reward_x)
+		coin.set_meta("by", 0.7)
+	var pu = POWERUP_SCRIPT.new()
+	powerup_container.add_child(pu)
+	pu.setup(POWERUP_KINDS[randi() % POWERUP_KINDS.size()])
+	pu.position = Vector3(reward_x, 0.0, SPAWN_Z + SPLIT_LENGTH * 0.5)
+	pu.set_meta("bx", reward_x)
+	pu.set_meta("by", 0.0)
+
+
+## An invisible, collide-only block in the "traffic" group (so the player's
+## existing collision treats it as a crash). Used to wall off the median lane.
+## Uses the Obstacle script (an Area3D that has the drive_speed property
+## _scroll_traffic expects) but skips its setup(), so there's no visual - the
+## median island strip provides the looks.
+func _add_median_collider(x: float, z: float, size: Vector3) -> void:
+	var block := OBSTACLE_SCRIPT.new()
+	block.add_to_group("traffic")
+	block.collision_layer = 2
+	block.collision_mask = 0
+	block.monitoring = false
+	block.set_meta("no_near_miss", true)
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	cs.shape = box
+	cs.position.y = size.y * 0.5
+	block.add_child(cs)
+	traffic_container.add_child(block)
+	block.position = Vector3(x, 0.0, z)
+	block.set_meta("bx", x)
+	block.set_meta("by", 0.0)
+
+
+## Concrete surface for the median island. Built once.
+func _get_median_material() -> StandardMaterial3D:
+	if _median_material == null:
+		_median_material = StandardMaterial3D.new()
+		_median_material.albedo_color = Color(0.62, 0.62, 0.64)
+		_median_material.roughness = 1.0
+	return _median_material
 
 
 # ==========================================================================
@@ -1231,7 +1388,7 @@ func _update_camera(delta: float) -> void:
 	camera.rotation.z = lerp(camera.rotation.z, target_roll, follow)
 
 	# Widen the field of view as we speed up = sense of speed.
-	var speed_ratio: float = clamp((speed - base_speed) / (MAX_SPEED - base_speed + 0.001), 0.0, 1.0)
+	var speed_ratio: float = clamp((speed - base_speed) / (max_speed - base_speed + 0.001), 0.0, 1.0)
 	camera.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
 
