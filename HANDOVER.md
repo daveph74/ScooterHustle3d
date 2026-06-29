@@ -231,6 +231,17 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 - Two-lane blocks unlock at `elapsed > 20s` (50% chance per row).
 - No sudden spikes — everything ramps with `elapsed`.
 
+**Construction events** (after `CLOSURE_FIRST_AT`, gated so only one runs at a time
+via `_closed_lane`): each event is either a **lane closure** (`_spawn_lane_closure` —
+an outer lane dead-ends behind a barrier wall + dug-up dirt, merge or crash) or,
+after `SPLIT_FIRST_AT`, a **road split** (`_spawn_road_split` — a concrete median
+island blocks the *centre* lane, forcing a left/right choice; both sides are
+drivable, one side (`_safe_lane`) is lined with a coin arc + power-up and traffic
+is steered to the other). Both reuse the same state: `_closed_lane` (blocked lane),
+`_safe_lane` (guaranteed-open lane), `_closure_until` (when it reopens). The median
+is a visual strip + nose in `crossing_container` plus invisible `Obstacle`-script
+colliders down the centre lane in `traffic_container`. Tune `SPLIT_*` consts.
+
 ### 6.6 Camera (`Game._update_camera`)
 - Drifts X partly toward the player's lane and toward the bend ahead.
 - **Yaws into bends** and **pitches with hills** by sampling `_path_offset(-22)` (22 m ahead). Base downward tilt is −16°.
