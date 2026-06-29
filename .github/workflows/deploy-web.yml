@@ -32,6 +32,9 @@ jobs:
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.0
+          # Use the standard (GDScript) build, NOT the .NET/Mono build - Godot 4
+          # cannot export Web from the Mono build, and this project has no C#.
+          use-dotnet: false
           include-templates: true
 
       # Import once so every .glb / resource is converted before exporting.
