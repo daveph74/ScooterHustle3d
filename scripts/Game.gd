@@ -157,7 +157,7 @@ const CROSSING_WALK_SPEED := 0.6   # how fast pedestrians stroll across (small =
 var closure_timer := 0.0
 var _closed_lane := -1             # lane physically blocked: outer (closure) or centre (split); -1 = none
 var _closure_until := 0.0          # distance at which the closure has fully passed
-const CLOSURE_FIRST_AT := 300.0    # no closures until this far into the run
+const CLOSURE_FIRST_AT := 50.0     # construction events start early (test-tuned)
 const CLOSURE_MIN_GAP := 11.0      # seconds between closures
 const CLOSURE_MAX_GAP := 20.0
 const CLOSURE_LENGTH := 20.0       # how long the dug-up stretch is (metres)
@@ -167,8 +167,8 @@ var _construction_material: StandardMaterial3D   # torn-up dirt surface (lazy)
 # are drivable; one side (random) is lined with a coin reward + a power-up,
 # the other gets the traffic. Reuses the closure state (_closed_lane = centre
 # lane, _safe_lane = the reward side, _closure_until = when the centre reopens).
-const SPLIT_FIRST_AT := 550.0      # splits start later than closures
-const SPLIT_CHANCE := 0.45         # of each construction event, chance it's a split
+const SPLIT_FIRST_AT := 50.0       # splits eligible from the first event (test-tuned)
+const SPLIT_CHANCE := 0.8          # most construction events are splits (test-tuned)
 const SPLIT_LENGTH := 30.0         # length of the median island (metres)
 var _median_material: StandardMaterial3D   # concrete median surface (lazy)
 
