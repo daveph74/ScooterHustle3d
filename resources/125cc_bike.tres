@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "125cc"
 display_name = "125cc Bike"
-model_path = "res://models/custom/scooter-125.glb"
+model_path = "res://models/custom/scooter.glb"
 speed = 1.7
 handling = 1.3
 price = 750
