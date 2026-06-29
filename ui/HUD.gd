@@ -123,6 +123,14 @@ func _ready() -> void:
 	_build_pause_ui()
 	UiTheme.apply_buttons(self)
 
+	# Small build tag (bottom-left) to confirm the running build on the phone.
+	var build_label := _make_label(GameData.BUILD_TAG, HORIZONTAL_ALIGNMENT_LEFT)
+	build_label.add_theme_font_size_override("font_size", 18)
+	build_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	build_label.offset_left = 14
+	build_label.offset_top = -32
+	add_child(build_label)
+
 
 # --- Speedometer -----------------------------------------------------------
 

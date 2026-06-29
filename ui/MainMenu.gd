@@ -16,6 +16,17 @@ func _ready() -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 
+	# Build tag in the bottom-left so you can confirm the phone is on the latest
+	# build (not a stale browser cache). Bump GameData.BUILD_TAG each deploy.
+	var build_label := Label.new()
+	build_label.text = GameData.BUILD_TAG
+	build_label.add_theme_font_size_override("font_size", 22)
+	build_label.add_theme_color_override("font_color", Color(0.6, 0.9, 0.6))
+	build_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	build_label.offset_left = 16
+	build_label.offset_top = -40
+	add_child(build_label)
+
 	# A CenterContainer fills the screen and keeps our column centred at its
 	# natural size (this is the reliable way to centre UI in Godot).
 	var center := CenterContainer.new()

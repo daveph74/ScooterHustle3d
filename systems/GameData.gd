@@ -6,6 +6,11 @@ extends Node
 ## player's coins, which scooters are unlocked, and which one is selected, and
 ## it saves/loads all of that to a local file.
 
+## Visible build tag - shown on the main menu and HUD so you can confirm the
+## web/phone build is the latest one (not a stale browser cache). BUMP THIS
+## whenever there's something to verify on the phone.
+const BUILD_TAG := "build 6 - split@50m"
+
 ## Where the save file lives. "user://" is a safe, writable folder that Godot
 ## maps to a per-user location on every platform (including Android).
 const SAVE_PATH := "user://scooterhustle_save.json"
