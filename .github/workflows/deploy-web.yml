@@ -51,6 +51,10 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          # Turn Pages on automatically (source = GitHub Actions) so no manual
+          # repo-settings step is needed.
+          enablement: true
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
