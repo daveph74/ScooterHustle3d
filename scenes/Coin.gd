@@ -30,7 +30,7 @@ func _ready() -> void:
 		# Use the custom coin model; hide the procedural disc.
 		$Mesh.visible = false
 		var holder := ModelUtil.instance_fitted(
-			self, load(COIN_MODEL_PATH), Vector3(COIN_SIZE, COIN_SIZE, COIN_SIZE),
+			self, ModelUtil.hd_load(COIN_MODEL_PATH), Vector3(COIN_SIZE, COIN_SIZE, COIN_SIZE),
 			"height", COIN_YAW)
 		holder.rotation_degrees.x = COIN_PITCH
 		# ModelUtil grounds the model (bottom at y=0); pull it down half its

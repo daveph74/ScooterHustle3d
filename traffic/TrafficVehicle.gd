@@ -12,21 +12,23 @@ class_name TrafficVehicle
 # Per-type config: the model, its collision bounds (also the fit target), and
 # the yaw that turns it to face the player (+Z). Tune a type's "yaw" in 90°
 # steps if that vehicle ends up pointing the wrong way down the road.
+# "model" is a PATH (resolved via ModelUtil.hd_load so the PC build can use a
+# models/pc/ HD version).
 const TYPES := {
 	"jeepney": {
-		"model": preload("res://models/custom/jeepney.glb"),
+		"model": "res://models/custom/jeepney.glb",
 		"bounds": Vector3(1.7, 1.7, 3.8), "yaw": 270.0,
 	},
 	"bus": {
-		"model": preload("res://models/custom/bus.glb"),
+		"model": "res://models/custom/bus.glb",
 		"bounds": Vector3(1.9, 2.2, 5.2), "yaw": 270.0,
 	},
 	"car": {
-		"model": preload("res://models/custom/taxi.glb"),
+		"model": "res://models/custom/taxi.glb",
 		"bounds": Vector3(1.5, 1.4, 2.6), "yaw": 270.0,
 	},
 	"tricycle": {
-		"model": preload("res://models/custom/tricycle.glb"),
+		"model": "res://models/custom/tricycle.glb",
 		"bounds": Vector3(1.5, 1.4, 2.0), "yaw": 270.0,
 	},
 }
@@ -50,7 +52,7 @@ func setup(vehicle_type: String) -> void:
 	var bounds: Vector3 = cfg.bounds
 
 	# Drop in the model, auto-fitted to the bounds and turned to face the player.
-	ModelUtil.instance_fitted($Model, cfg.model, bounds, "length", cfg.yaw)
+	ModelUtil.instance_fitted($Model, ModelUtil.hd_load(cfg.model), bounds, "length", cfg.yaw)
 
 	# Collision box = the overall bounds, sitting on the road.
 	var shape := BoxShape3D.new()

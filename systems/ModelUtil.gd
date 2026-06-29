@@ -11,6 +11,22 @@ class_name ModelUtil
 ## freely move/rotate that holder (e.g. to position scenery) without disturbing
 ## the fit, because all the fitting happens on an inner pivot node.
 
+## --- HD asset override (PC build) -----------------------------------------
+## If a higher-res version of a model exists in res://models/pc/<filename>, use
+## it; otherwise fall back to the given path. Lets the PC build ship sharper
+## models (drop 2K-texture re-exports into models/pc/) without touching mobile.
+const PC_DIR := "res://models/pc/"
+
+## The path to load for a model: the models/pc/ override if present, else `path`.
+static func hd_path(path: String) -> String:
+	var pc := PC_DIR + path.get_file()
+	return pc if ResourceLoader.exists(pc) else path
+
+## Load a model, preferring its models/pc/ HD override when present.
+static func hd_load(path: String) -> PackedScene:
+	return load(hd_path(path)) as PackedScene
+
+
 ## fit_axis:
 ##   "length" - scale so the longest horizontal side matches target.z (vehicles)
 ##   "height" - scale so the height matches target.y (buildings, trees)

@@ -204,7 +204,8 @@ GameOver ──Menu───▶ MainMenu.tscn
 
 Most "feel" values live as constants/variables at the top of **`scripts/Game.gd`**:
 
-- `base_speed`, `MAX_SPEED` — how fast the world scrolls.
+- Per-bike speed: each bike's `speed` stat in `resources/*.tres` sets its start
+  and top speed; the global `SPEED_*` consts in `Game.gd` tune the formula.
 - `traffic_interval`, `coin_interval` — spawn frequency.
 - the difficulty ramp lines inside `_process()` (the `* 0.35`, `* 0.012` numbers).
 - `LANE_WIDTH` (also in `Player.gd` — keep them equal!).

@@ -18,7 +18,7 @@ var _districts: Array = [
 		"name": "Downtown",
 		"tree_weight": 0.10,
 		"landmark_weight": 0.35,
-		"landmark_pool": [0, 2, 3, 5, 6, 7],  # jollibee, insal, petron, 711, chowking, lto
+		"landmark_pool": [0, 2, 3, 5, 6, 7, 8, 10, 11],  # jollibee, insal, petron, 711, chowking, lto, pharmacy, bpo, pawnshop
 		"ground_color": Color(0.36, 0.36, 0.37),
 		"ambient_color": Color(1.00, 0.96, 0.93),
 		"sun_color":     Color(1.00, 0.96, 0.86),
@@ -29,7 +29,7 @@ var _districts: Array = [
 		"name": "Barangay",
 		"tree_weight": 0.25,
 		"landmark_weight": 0.30,
-		"landmark_pool": [1, 2, 3, 4],  # church, insal, petron, sari-sari
+		"landmark_pool": [1, 2, 3, 4, 9],  # church, insal, petron, sari-sari, barangay_hall
 		"ground_color": Color(0.36, 0.40, 0.26),
 		"ambient_color": Color(1.00, 0.97, 0.88),
 		"sun_color":     Color(1.00, 0.97, 0.82),
@@ -40,7 +40,7 @@ var _districts: Array = [
 		"name": "Residential",
 		"tree_weight": 0.35,
 		"landmark_weight": 0.20,
-		"landmark_pool": [1, 4],  # church, sari-sari
+		"landmark_pool": [1, 4, 9, 12],  # church, sari-sari, barangay_hall, school
 		"ground_color": Color(0.30, 0.44, 0.22),
 		"ambient_color": Color(1.00, 0.98, 0.90),
 		"sun_color":     Color(1.00, 0.95, 0.80),
@@ -51,7 +51,7 @@ var _districts: Array = [
 		"name": "Provincial",
 		"tree_weight": 0.35,
 		"landmark_weight": 0.25,
-		"landmark_pool": [1, 3, 4],  # church, petron, sari-sari
+		"landmark_pool": [1, 3, 4, 12],  # church, petron, sari-sari, school
 		"ground_color": Color(0.40, 0.42, 0.24),
 		"ambient_color": Color(1.00, 0.96, 0.82),
 		"sun_color":     Color(1.00, 0.94, 0.72),
@@ -62,7 +62,7 @@ var _districts: Array = [
 		"name": "Beach Road",
 		"tree_weight": 0.50,
 		"landmark_weight": 0.20,
-		"landmark_pool": [3, 4],  # petron, sari-sari
+		"landmark_pool": [3, 4, 8],  # petron, sari-sari, pharmacy
 		"ground_color": Color(0.80, 0.74, 0.50),
 		"ambient_color": Color(1.00, 0.99, 0.93),
 		"sun_color":     Color(1.00, 0.97, 0.88),
@@ -73,7 +73,7 @@ var _districts: Array = [
 		"name": "Fiesta",
 		"tree_weight": 0.10,
 		"landmark_weight": 0.40,
-		"landmark_pool": [0, 1, 2, 4, 6],  # jollibee, church, insal, sari-sari, chowking
+		"landmark_pool": [0, 1, 2, 4, 6, 8, 11],  # jollibee, church, insal, sari-sari, chowking, pharmacy, pawnshop
 		"ground_color": Color(0.40, 0.34, 0.22),
 		"ambient_color": Color(1.00, 0.95, 0.78),
 		"sun_color":     Color(1.00, 0.92, 0.68),

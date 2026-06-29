@@ -189,7 +189,11 @@ AudioManager (autoload) persists across scene changes -> music keeps playing.
 ### 6.1 Player (`vehicles/Player.gd`)
 - **Dynamic lanes** (no fixed lane count). `lane_positions: Array` holds the world X of each lane centre on the CURRENT road section; `Game` pushes it every frame via `player.set_lanes(...)` from `RoadManager.config_at(distance).positions` (see §6.12). `current_lane` is an INDEX into that array, starting at 1.
 - `_current_lane_x()` **clamps** `current_lane` to the array size, so when the road narrows and a lane vanishes, the player resolves to the nearest valid lane and the position lerp **slides them there smoothly — never an instant death.**
-- Smoothly lerps `position.x` to the target lane; `lane_change_speed = 7.0 * scooter.handling`.
+- Smoothly lerps `position.x` to the target lane. The bike's `handling` stat sets
+  both `lane_change_speed = LANE_SLIDE_PER * handling` (slide speed) and
+  `_lean_strength = LEAN_PER * handling` (how hard it leans), so a nimble bike
+  changes lanes faster and tips sharper. Tune `LANE_SLIDE_PER`/`LEAN_PER` in
+  `Player.gd`, or each bike's `handling` in `resources/*.tres`.
 - **Keyboard:** `Input.is_action_just_pressed("move_left"/"move_right")`.
 - **Touch:** `_unhandled_input` tracks a screen touch; a drag of > `SWIPE_MIN_PIXELS` (40px) triggers one lane change (one lane per swipe). Mouse→touch emulation is on in `project.godot`, so click-drag works on desktop.
 - Visual model: custom Meshy scooter (`models/custom/scooter.glb`) via `ModelUtil.instance_fitted`, oriented with `SCOOTER_YAW = 270.0`.
@@ -218,10 +222,25 @@ adjacent lane (`1.2 < dx < 3.2`) AND the player actually swerved lanes within
 "NEAR MISS!" flash, and the near_miss SFX.
 
 ### 6.5 Difficulty ramp (`Game._process`)
-- `speed = min(base_speed + elapsed*0.35, MAX_SPEED=42)`, where `base_speed = 14 + scooter.speed*4`.
+- `speed = min(base_speed + elapsed*0.35, max_speed)`. Each bike's `speed` stat
+  (in its `.tres`) sets BOTH ends: `base_speed = 14 + scooter.speed*4` (start) and
+  `max_speed = max(base+4, 30 + scooter.speed*7)` (top), so faster bikes really do
+  go faster instead of all converging on one cap. Tune the `SPEED_*` consts in
+  `Game.gd`, or just edit each bike's `speed` in `resources/*.tres`.
 - `traffic_interval = max(0.85, 1.6 - elapsed*0.012)` (rows get closer).
 - Two-lane blocks unlock at `elapsed > 20s` (50% chance per row).
 - No sudden spikes — everything ramps with `elapsed`.
+
+**Construction events** (after `CLOSURE_FIRST_AT`, gated so only one runs at a time
+via `_closed_lane`): each event is either a **lane closure** (`_spawn_lane_closure` —
+an outer lane dead-ends behind a barrier wall + dug-up dirt, merge or crash) or,
+after `SPLIT_FIRST_AT`, a **road split** (`_spawn_road_split` — a concrete median
+island blocks the *centre* lane, forcing a left/right choice; both sides are
+drivable, one side (`_safe_lane`) is lined with a coin arc + power-up and traffic
+is steered to the other). Both reuse the same state: `_closed_lane` (blocked lane),
+`_safe_lane` (guaranteed-open lane), `_closure_until` (when it reopens). The median
+is a visual strip + nose in `crossing_container` plus invisible `Obstacle`-script
+colliders down the centre lane in `traffic_container`. Tune `SPLIT_*` consts.
 
 ### 6.6 Camera (`Game._update_camera`)
 - Drifts X partly toward the player's lane and toward the bend ahead.
@@ -371,7 +390,7 @@ Almost everything lives at the top of **`scripts/Game.gd`**:
 | Lane spacing | `RoadManager.LANE_WIDTH` (single source of truth — Player reads lanes from it) |
 | When lanes change (2/3/4) | `RoadManager` `ALL_3_UNTIL` / `ALLOW_4_AFTER` / `SECTION_MIN/MAX` / `_pick_next_count` |
 | Transition (narrow/widen) length | `RoadManager.TRANSITION_LEN` |
-| Speed / difficulty | `base_speed` formula, `MAX_SPEED`, the `elapsed*` ramp coefficients |
+| Speed / difficulty | `SPEED_*` consts (per-bike start/top speed) + each bike's `speed` in `resources/*.tres`, the `elapsed*` ramp coefficients |
 | How aggressive traffic is | `traffic_interval` floor, the `elapsed > 20` / `randf() < 0.5` block-all gate |
 | Traffic relative speed | `TRAFFIC_SPEED_FRACTION` |
 | Pedestrian crossings | `CROSSING_FIRST_AT` / `CROSSING_MIN/MAX_GAP` / `CROSSING_WALK_SPEED` (Game.gd) |

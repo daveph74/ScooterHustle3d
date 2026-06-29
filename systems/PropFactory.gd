@@ -22,7 +22,8 @@ func _get_mat(color: Color) -> StandardMaterial3D:
 func make(key: String, parent: Node3D) -> Node3D:
 	var cache_key := "scene_" + key
 	if not _cache.has(cache_key):
-		var path := "res://models/custom/" + key + ".glb"
+		# Prefer a models/pc/ HD override on the PC build, else the standard model.
+		var path := ModelUtil.hd_path("res://models/custom/" + key + ".glb")
 		# ResourceLoader.exists() avoids an error log when the file is absent.
 		_cache[cache_key] = load(path) if ResourceLoader.exists(path) else null
 	var packed = _cache[cache_key]

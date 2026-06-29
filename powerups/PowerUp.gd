@@ -50,7 +50,7 @@ func setup(new_kind: String) -> void:
 	var path := "res://models/custom/%s.glb" % kind
 	if ResourceLoader.exists(path):
 		var holder := ModelUtil.instance_fitted(
-			self, load(path), Vector3(MODEL_SIZE, MODEL_SIZE, MODEL_SIZE), "height", 0.0)
+			self, ModelUtil.hd_load(path), Vector3(MODEL_SIZE, MODEL_SIZE, MODEL_SIZE), "height", 0.0)
 		# ModelUtil grounds the model; lift it so it hovers at FLOAT_HEIGHT.
 		holder.position.y = FLOAT_HEIGHT - MODEL_SIZE * 0.5
 	else:
